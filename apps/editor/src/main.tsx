@@ -250,6 +250,7 @@ function App() {
   const [imagePrompt, setImagePrompt] = useState("");
   const [notice, setNotice] = useState("");
   const [codexImageGuide, setCodexImageGuide] = useState<{ prompt: string; path: string } | null>(null);
+  const [codexCopyState, setCodexCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const [isEditing, setIsEditing] = useState(false);
   const [showCustomBox, setShowCustomBox] = useState(false);
   const [showInsertBox, setShowInsertBox] = useState(false);
@@ -1071,8 +1072,32 @@ function App() {
     setShowImageBox(false);
     setImagePrompt("");
     setCodexImageGuide({ prompt: codexPrompt, path: imageRequestPath });
+    setCodexCopyState("idle");
     setNotice("已生成 Codex 生图请求。请按下方步骤回到 Codex 对话处理。");
-    appendTraceItem(setAiTrace, `已写入 Codex 生图请求：${imageRequestPath}`);
+    appendTraceItem(setAiTrace, "Codex 生图请求已准备好，等待你回到 Codex 对话处理。");
+  }
+
+  async function copyCodexImagePrompt(prompt: string) {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(prompt);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = prompt;
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+      }
+      setCodexCopyState("copied");
+      setNotice("已复制。回到 Codex 对话窗口粘贴发送即可。");
+    } catch {
+      setCodexCopyState("failed");
+      setNotice("复制失败。请手动选中卡片里的指令复制到 Codex。");
+    }
   }
 
   function submitInsertRequest() {
@@ -1422,7 +1447,7 @@ function App() {
                   placeholder="描述要新增的内容，例如：结合全文在这里补一段承上启下的过渡；给标题补一个更有吸引力的短语；在光标处插入三条冲绳水族馆游玩建议。"
                   onChange={(event) => setInsertPrompt(event.target.value)}
                 />
-                <div>
+                <div className="promptActions">
                   <button onClick={() => setShowInsertBox(false)}>取消</button>
                   <button className="primarySmall" disabled={isAiRunning || !insertPrompt.trim()} onClick={submitInsertRequest}>
                     插入到光标位置
@@ -1442,7 +1467,7 @@ function App() {
                   placeholder="可选。写出图片方向，例如：冲绳美丽海水族馆，蓝色巨型水槽，真实旅行摄影感，适合公众号正文配图，不要文字、水印、二维码。留空则由 AI 根据文章自动判断。"
                   onChange={(event) => setImagePrompt(event.target.value)}
                 />
-                <div>
+                <div className="promptActions">
                   <button onClick={() => setShowImageBox(false)}>取消</button>
                   <button className="primarySmall" disabled={isAiRunning} onClick={() => void requestCodexImagegen()}>
                     请求 Codex 生图
@@ -1501,10 +1526,10 @@ function App() {
                 </ol>
                 <div className="codexPromptBox">{codexImageGuide.prompt}</div>
                 <div className="codexGuideFooter">
-                  <span>请求文件：{codexImageGuide.path}</span>
-                  <button onClick={() => void navigator.clipboard?.writeText(codexImageGuide.prompt)}>
+                  <span title={codexImageGuide.path}>请求已保存到本地</span>
+                  <button onClick={() => void copyCodexImagePrompt(codexImageGuide.prompt)}>
                     <Clipboard size={14} />
-                    <span>复制这句话</span>
+                    <span>{codexCopyState === "copied" ? "已复制" : codexCopyState === "failed" ? "手动复制" : "复制指令"}</span>
                   </button>
                 </div>
               </div>

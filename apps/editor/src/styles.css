@@ -522,9 +522,10 @@ textarea:focus {
   margin-bottom: 8px;
 }
 
-.promptPopover div {
+.promptActions {
   display: flex;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -537,12 +538,14 @@ textarea:focus {
 
 .promptPopover button,
 .primarySmall {
-  height: 32px;
+  min-height: 32px;
   padding: 0 12px;
   border: 1px solid #cbd7d1;
   border-radius: 6px;
   background: #ffffff;
   color: #263034;
+  line-height: 1.2;
+  white-space: normal;
 }
 
 .primarySmall {
@@ -730,20 +733,30 @@ textarea:focus {
 }
 
 .codexGuideFooter {
+  flex-wrap: wrap;
   color: #718086;
   font-size: 12px;
+}
+
+.codexGuideFooter > span {
+  min-width: 0;
+  flex: 1 1 140px;
 }
 
 .codexGuideFooter button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
   gap: 5px;
-  height: 30px;
+  min-height: 30px;
   padding: 0 10px;
   border: 1px solid #0f766e;
   border-radius: 6px;
   background: #ffffff;
   color: #0f5f59;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .traceBox {
