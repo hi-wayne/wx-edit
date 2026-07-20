@@ -51,5 +51,5 @@ Notes:
 - If `codex login` has not been completed, ask the user to run it once in Codex or the terminal.
 - The project installs its own `wx-article` Codex skill. It does not install Codex's built-in `imagegen` skill, because that comes from the user's Codex app/runtime.
 - Do not ask normal Codex subscribers for an OpenAI API key when they choose `请求 Codex 生图`. Check whether the active Codex session has the `imagegen` skill. If it does, process `.wx-editor/image-request.json` with that skill, save the generated asset under `.wx-editor/assets/`, and insert it into the article.
-- If `imagegen` is unavailable in the user's Codex build, explain that text AI and Wikimedia image search still work, and ask the user to update/restart Codex. Direct browser-side GPT Image generation is only available when the user intentionally configures `WX_IMAGE_PROVIDER=openai-api` and `OPENAI_API_KEY`.
+- If `imagegen` is unavailable in the user's Codex build, explain that text AI still works, and ask the user to update/restart Codex. Direct server-side GPT Image generation is only available when the user intentionally configures `WX_IMAGE_PROVIDER=openai-api` and `OPENAI_API_KEY`.
 - Runtime article state lives in `.wx-editor/` and should not be committed.

@@ -1034,24 +1034,6 @@ function App() {
     ].join("");
   }
 
-  function submitImageRequest() {
-    const base = imagePrompt.trim()
-      ? `优先按用户配图提示词生成并插入一张适合微信公众号正文的图片：${imagePrompt.trim()}。`
-      : selection
-        ? "根据当前选中内容生成并插入一张适合微信公众号正文的配图。"
-        : "根据全文和最后停留的光标附近内容生成并插入一张适合微信公众号正文的配图。";
-    void submitAiRequest(
-      [
-        base,
-        selection ? "只处理当前选区附近的位置，不改写选中文字和选区外正文。" : "插入到正文最后停留的光标位置；不要改写现有正文。",
-        "图片要贴合文章语境，适合手机端阅读，不要文字、水印、二维码、Logo 或公众号界面截图。",
-        "请插入 figure，figcaption 写一句具体但不抢正文的说明。",
-        "如果能生成真实图片，请把图片保存到本地素材目录并在当前位置插入 figure；如果暂时不能生成真实图片，请插入 <figure><img src=\"/api/placeholder-image?title=图片主题&subtitle=图片方向\" alt=\"图片主题\"><figcaption>具体图片方向</figcaption></figure>。"
-      ].join(""),
-      { useInsertAnchor: !selection, allowImageGeneration: true, operation: !selection ? "insert" : "edit" }
-    );
-  }
-
   async function requestCodexImagegen() {
     if (!state) return;
     const contentHtml = editorRef.current?.innerHTML ?? state.article.contentHtml ?? "";
@@ -1471,9 +1453,6 @@ function App() {
                   <button onClick={() => setShowImageBox(false)}>取消</button>
                   <button className="primarySmall" disabled={isAiRunning} onClick={() => void requestCodexImagegen()}>
                     请求 Codex 生图
-                  </button>
-                  <button className="primarySmall" disabled={isAiRunning} onClick={submitImageRequest}>
-                    自动配图
                   </button>
                 </div>
               </div>

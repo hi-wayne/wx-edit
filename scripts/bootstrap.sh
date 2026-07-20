@@ -46,7 +46,7 @@ if command -v codex >/dev/null 2>&1; then
     echo "==> Codex imagegen skill found."
   else
     echo "==> Codex imagegen skill was not found."
-    echo "The editor still works. Text AI and Wikimedia image search do not need it."
+    echo "The editor still works. Text AI does not need it."
     echo "For Codex-assisted AI image generation, update/restart Codex and use a build that includes the imagegen skill."
   fi
 else

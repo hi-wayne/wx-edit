@@ -118,7 +118,7 @@ PORT=3001 pnpm dev
 - 右侧 AI 辅助：选中文字后润色、缩短、扩写、查错、自定义要求
 - AI 插入：读取全文和最后光标位置，按提示词新增内容
 - 配图：不需要选区；优先参考选区，没有选区时参考全文和光标附近内容
-- 配图面板：`自动配图` 会自动搜索真图/占位或走 API；`请求 Codex 生图` 会写入 `.wx-editor/image-request.json`，让 Codex 使用 `imagegen` skill 生成图片并插入文章
+- 配图面板：`请求 Codex 生图` 会写入 `.wx-editor/image-request.json`，让 Codex 使用 `imagegen` skill 生成图片并插入文章
 - 使用 `codex login` 登录后，AI 按钮会直接调用本机 Codex 并回填正文
 - 微信兼容 HTML 导出
 - Markdown 导出
@@ -161,13 +161,12 @@ pnpm dev
 
 ## 图片生成
 
-编辑器支持三种配图方式：
+编辑器支持两种配图方式：
 
-- 默认：没有 API key 时，先从 Wikimedia Commons 搜索并下载真实图片到 `.wx-editor/assets`；如果没有找到合适图片，再生成本地 SVG 占位图。
 - Codex 对话辅助：如果你的 Codex 客户端带有内置 `imagegen` skill，可以回到 Codex 对话里要求 Codex 生成图片、保存到 `.wx-editor/assets` 并插入文章。这个路径使用 Codex 当前对话能力，不需要 OpenAI API token。
-- OpenAI 图片 API：如果你自己有 API key，也可以配置后让浏览器按钮直接调用 GPT Image 生成 PNG 图片，保存到 `.wx-editor/assets` 并插入正文。
+- OpenAI 图片 API：如果你自己有 API key，也可以配置服务端能力，让本地服务直接调用 GPT Image 生成 PNG 图片，保存到 `.wx-editor/assets` 并插入正文。
 
-新用户只安装 Codex 时，`bash scripts/bootstrap.sh` 会自动安装本项目的 `wx-article` skill，并检测本机 Codex 是否带有 `imagegen`。`imagegen` 是 Codex 客户端内置能力，不是本仓库能替用户强行安装的 npm 依赖；如果检测不到，编辑器仍然能正常写作、改写、排版和搜索真实配图，只是 `请求 Codex 生图` 需要用户更新或重启 Codex 后再用。
+新用户只安装 Codex 时，`bash scripts/bootstrap.sh` 会自动安装本项目的 `wx-article` skill，并检测本机 Codex 是否带有 `imagegen`。`imagegen` 是 Codex 客户端内置能力，不是本仓库能替用户强行安装的 npm 依赖；如果检测不到，编辑器仍然能正常写作、改写和排版，只是 `请求 Codex 生图` 需要用户更新或重启 Codex 后再用。
 
 使用 Codex 对话辅助生图时，按这几步做：
 
@@ -182,19 +181,12 @@ pnpm dev
 
 5. 等 Codex 处理完成后，回到浏览器 `http://localhost:3000/`，刷新或等待预览自动更新。
 
-启用真实图片生成：
+启用服务端 OpenAI 图片生成：
 
 ```bash
 export WX_IMAGE_PROVIDER=openai-api
 export OPENAI_API_KEY=<你的 OpenAI API Key>
 export WX_IMAGE_MODEL=gpt-image-2
-pnpm dev
-```
-
-只想禁用真实图片搜索、退回本地占位图：
-
-```bash
-export WX_IMAGE_PROVIDER=placeholder
 pnpm dev
 ```
 

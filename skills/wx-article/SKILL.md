@@ -55,8 +55,8 @@ Legacy block types:
 - Preserve the user's voice unless the user explicitly asks for a stronger rewrite.
 - When the user asks for style changes, use ordinary article structures such as headings, quotes, bold text, lists, separators, or figures. Avoid turning writing into rigid slots.
 - When the user asks for a picture, either insert a `<figure>` with a local path/URL provided by the user or create a clear image generation/search brief.
-- When the local editor sends an AI image request, use the user's image prompt plus selected text/context. If the active Codex session has the built-in `imagegen` skill, create the image asset and insert a `<figure>` near the selection. If `imagegen` is not available, tell the user to update/restart Codex and use the editor's Wikimedia image search or the optional OpenAI API key path for now.
-- In the local editor, `WX_IMAGE_PROVIDER=openai-api` plus `OPENAI_API_KEY` enables real GPT Image generation into `.wx-editor/assets`. Without that API key path, the editor searches Wikimedia Commons for real image assets and falls back to a local SVG placeholder when no suitable image is found. The built-in Codex conversation image tool can be used by the active Codex agent, but it is not a stable local HTTP API exposed through `codex exec`.
+- When the local editor sends a Codex image request, use the user's image prompt plus selected text/context. If the active Codex session has the built-in `imagegen` skill, create the image asset and insert a `<figure>` near the selection. If `imagegen` is not available, tell the user to update/restart Codex. Do not suggest the removed automatic image-search flow.
+- In the local editor, `WX_IMAGE_PROVIDER=openai-api` plus `OPENAI_API_KEY` is an optional server-side path for real GPT Image generation into `.wx-editor/assets`. The preferred no-token path is still Codex-assisted generation through the active Codex conversation. The built-in Codex conversation image tool can be used by the active Codex agent, but it is not a stable local HTTP API exposed through `codex exec`.
 - When the user asks for one-click typesetting, improve the existing `contentHtml` hierarchy without changing meaning: add headings, split long paragraphs, add lists, emphasize key sentences, and insert separators sparingly.
 - When the user asks for a summary/摘要 for publishing, update `digest` only. When the user asks for an opening/导语, write it into `contentHtml`.
 - Keep claims factual. Ask for source material when the article makes specific commercial, legal, medical, or financial claims that need verification.
@@ -84,7 +84,7 @@ pnpm dev
 
 The editor runs at `http://localhost:3000` by default.
 The editor's AI buttons call the local `/api/ai/apply` endpoint, which defaults to local `codex exec` using the user's saved ChatGPT/Codex login. Users do not need an OpenAI API token for the default path. If Codex login is unavailable, the editor writes `.wx-editor/request.json` as a fallback for Codex to process manually. Set `WX_AI_PROVIDER=openai-api` only when intentionally using an OpenAI API key.
-For GPT Image generation from the browser button, set `WX_IMAGE_PROVIDER=openai-api` and `OPENAI_API_KEY`. Without that, image requests use Wikimedia Commons search first, then local generated SVG assets as fallback. They can also be handled manually by the active Codex conversation using its built-in image generation tool.
+For image generation from the browser, use `请求 Codex 生图` and then process `.wx-editor/image-request.json` in the active Codex conversation with the built-in `imagegen` skill. Set `WX_IMAGE_PROVIDER=openai-api` and `OPENAI_API_KEY` only when intentionally enabling a separate server-side image API path.
 
 Important files:
 
@@ -106,7 +106,7 @@ When `.wx-editor/image-request.json` exists and the user asks Codex to process t
 6. Mark the image request status as `done` and include the saved asset path.
 7. If the local editor is running, call its article update/export API or tell the user to refresh.
 
-If the active Codex session does not expose `imagegen`, do not ask a normal Codex subscriber for an API token. Explain that `imagegen` is provided by the Codex app/runtime, ask them to update or restart Codex, and suggest the editor's `自动配图` Wikimedia search as the immediate fallback.
+If the active Codex session does not expose `imagegen`, do not ask a normal Codex subscriber for an API token. Explain that `imagegen` is provided by the Codex app/runtime, and ask them to update or restart Codex.
 
 The browser tells the user to return to Codex and paste this style of request:
 
