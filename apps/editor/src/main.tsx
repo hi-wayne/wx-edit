@@ -1050,6 +1050,27 @@ function App() {
     );
   }
 
+  async function requestCodexImagegen() {
+    if (!state) return;
+    const contentHtml = editorRef.current?.innerHTML ?? state.article.contentHtml ?? "";
+    const res = await fetch("/api/imagegen-request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt: imagePrompt.trim(),
+        selectedText: selection?.selectedText ?? "",
+        selectedHtml: selection?.selectedHtml ?? "",
+        selectionTarget: selection?.target ?? "body",
+        contentHtml
+      })
+    });
+    const result = await res.json() as { codexPrompt?: string; imageRequestPath?: string };
+    setShowImageBox(false);
+    setImagePrompt("");
+    setNotice(result.codexPrompt || "已生成 Codex 生图请求。请回到 Codex 处理最新配图请求。");
+    appendTraceItem(setAiTrace, `已写入 Codex 生图请求：${result.imageRequestPath ?? ".wx-editor/image-request.json"}`);
+  }
+
   function submitInsertRequest() {
     const text = insertPrompt.trim();
     if (!text) return;
@@ -1419,8 +1440,11 @@ function App() {
                 />
                 <div>
                   <button onClick={() => setShowImageBox(false)}>取消</button>
+                  <button className="primarySmall" disabled={isAiRunning} onClick={() => void requestCodexImagegen()}>
+                    请求 Codex 生图
+                  </button>
                   <button className="primarySmall" disabled={isAiRunning} onClick={submitImageRequest}>
-                    生成并插入配图
+                    自动配图
                   </button>
                 </div>
               </div>

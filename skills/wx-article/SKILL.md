@@ -12,11 +12,12 @@ Use this skill to turn a user's draft, topic, outline, or browser selection requ
 1. Locate the repository root and the editor state directory `.wx-editor`.
 2. Read `.wx-editor/article.json` when the user is working with the local browser editor.
 3. Read `.wx-editor/request.json` when the user says the browser submitted an AI request.
-4. If the request includes `selectionTarget: "title"`, treat `selectedText` as a title selection and edit the `title` field only unless the instruction asks otherwise.
-5. If the request includes `selectedText` and `selectedHtml` with `selectionTarget: "body"`, treat it as a precise selection inside the freeform article body.
-6. Modify `contentHtml` first for body edits. Use legacy `blocks` only when the article has no `contentHtml`.
-7. Run the editor export or renderer check after meaningful changes.
-8. Tell the user to refresh the local preview or rely on the editor's automatic refresh.
+4. Read `.wx-editor/image-request.json` when the user says the browser submitted a Codex image generation request.
+5. If the request includes `selectionTarget: "title"`, treat `selectedText` as a title selection and edit the `title` field only unless the instruction asks otherwise.
+6. If the request includes `selectedText` and `selectedHtml` with `selectionTarget: "body"`, treat it as a precise selection inside the freeform article body.
+7. Modify `contentHtml` first for body edits. Use legacy `blocks` only when the article has no `contentHtml`.
+8. Run the editor export or renderer check after meaningful changes.
+9. Tell the user to refresh the local preview or rely on the editor's automatic refresh.
 
 ## Article Model
 
@@ -89,8 +90,21 @@ Important files:
 
 - `.wx-editor/article.json`: source article state
 - `.wx-editor/request.json`: latest browser AI request
+- `.wx-editor/image-request.json`: latest browser request for Codex imagegen skill
 - `.wx-editor/article.wechat.html`: exported WeChat HTML
 - `.wx-editor/article.md`: exported Markdown
+
+## Handling Codex Imagegen Requests
+
+When `.wx-editor/image-request.json` exists and the user asks Codex to process the latest image request:
+
+1. Use the `imagegen` skill and its built-in image generation mode when available.
+2. Read the request fields: `prompt`, `selectedText`, `selectedHtml`, `articleTitle`, and `contentHtml`.
+3. Generate a real bitmap image suitable for a WeChat Official Account article. Avoid text, watermarks, QR codes, and UI screenshots unless explicitly requested.
+4. Save the selected generated image into `.wx-editor/assets/` with a descriptive filename.
+5. Insert a `<figure><img src="/assets/<filename>" alt="..."><figcaption>...</figcaption></figure>` into `.wx-editor/article.json` near the selected content. If no selection exists, insert it near the most relevant paragraph or the latest useful article position.
+6. Mark the image request status as `done` and include the saved asset path.
+7. If the local editor is running, call its article update/export API or tell the user to refresh.
 
 ## Handling Browser AI Requests
 

@@ -17,6 +17,7 @@ const repoRoot = path.resolve(rootDir, "../..");
 const stateDir = path.join(repoRoot, ".wx-editor");
 const articlePath = path.join(stateDir, "article.json");
 const requestPath = path.join(stateDir, "request.json");
+const imageRequestPath = path.join(stateDir, "image-request.json");
 const exportHtmlPath = path.join(stateDir, "article.wechat.html");
 const exportMdPath = path.join(stateDir, "article.md");
 const assetsDir = path.join(stateDir, "assets");
@@ -809,7 +810,7 @@ app.get("/api/article", async (_req, res) => {
     article,
     html: renderWechatHtml(article),
     issues: checkWechatCompatibility(article),
-    paths: { articlePath, requestPath, exportHtmlPath, exportMdPath }
+    paths: { articlePath, requestPath, imageRequestPath, exportHtmlPath, exportMdPath }
   });
 });
 
@@ -829,6 +830,36 @@ app.post("/api/ai-request", async (req, res) => {
   res.json({ ok: true, requestPath });
 });
 
+app.post("/api/imagegen-request", async (req, res) => {
+  await ensureState();
+  const article = await readArticle();
+  const prompt = typeof req.body.prompt === "string" ? req.body.prompt.trim() : "";
+  const payload = {
+    createdAt: new Date().toISOString(),
+    status: "pending",
+    kind: "codex-imagegen",
+    prompt,
+    selectedText: typeof req.body.selectedText === "string" ? req.body.selectedText : "",
+    selectedHtml: typeof req.body.selectedHtml === "string" ? req.body.selectedHtml : "",
+    selectionTarget: req.body.selectionTarget === "title" ? "title" : "body",
+    articleTitle: article.title,
+    contentHtml: article.contentHtml ?? "",
+    instruction: [
+      "Use the Codex imagegen skill to generate a real bitmap image for this WeChat Official Account article.",
+      "Save the final image into .wx-editor/assets with a descriptive filename.",
+      "Insert it into .wx-editor/article.json contentHtml as a <figure><img src=\"/assets/...\"><figcaption>...</figcaption></figure> near the selected content or latest useful article position.",
+      "Then export/update the article state if the local editor service is running.",
+      prompt ? `Image prompt: ${prompt}` : "If prompt is empty, infer a suitable image direction from the article title, selected content, and article context."
+    ].join("\n")
+  };
+  await fs.writeFile(imageRequestPath, JSON.stringify(payload, null, 2));
+  res.json({
+    ok: true,
+    imageRequestPath,
+    codexPrompt: "请处理 wx-edit 的最新配图请求，使用 imagegen skill 生成图片，保存到 .wx-editor/assets，并插入文章。"
+  });
+});
+
 app.post("/api/ai/apply", async (req, res) => {
   try {
     const article = await applyAiEdit(req.body as AiApplyRequest);
@@ -837,7 +868,7 @@ app.post("/api/ai/apply", async (req, res) => {
       article,
       html: renderWechatHtml(article),
       issues: checkWechatCompatibility(article),
-      paths: { articlePath, requestPath, exportHtmlPath, exportMdPath }
+      paths: { articlePath, requestPath, imageRequestPath, exportHtmlPath, exportMdPath }
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown AI error";
@@ -861,7 +892,7 @@ app.post("/api/ai/apply-stream", async (req, res) => {
       article,
       html: renderWechatHtml(article),
       issues: checkWechatCompatibility(article),
-      paths: { articlePath, requestPath, exportHtmlPath, exportMdPath }
+      paths: { articlePath, requestPath, imageRequestPath, exportHtmlPath, exportMdPath }
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown AI error";

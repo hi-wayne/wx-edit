@@ -103,6 +103,7 @@ PORT=3001 pnpm dev
 
 - `.wx-editor/article.json`：文章结构化源文件
 - `.wx-editor/request.json`：浏览器提交给 Codex 的最新 AI 修改请求
+- `.wx-editor/image-request.json`：浏览器提交给 Codex 的最新 imagegen 生图请求
 - `.wx-editor/article.wechat.html`：导出的微信公众号 HTML
 - `.wx-editor/article.md`：导出的 Markdown
 - `skills/wx-article`：Codex skill
@@ -117,6 +118,7 @@ PORT=3001 pnpm dev
 - 右侧 AI 辅助：选中文字后润色、缩短、扩写、查错、自定义要求
 - AI 插入：读取全文和最后光标位置，按提示词新增内容
 - 配图：不需要选区；优先参考选区，没有选区时参考全文和光标附近内容
+- 配图面板：`自动配图` 会自动搜索真图/占位或走 API；`请求 Codex 生图` 会写入 `.wx-editor/image-request.json`，让 Codex 使用 `imagegen` skill 生成图片并插入文章
 - 使用 `codex login` 登录后，AI 按钮会直接调用本机 Codex 并回填正文
 - 微信兼容 HTML 导出
 - Markdown 导出
@@ -164,6 +166,12 @@ pnpm dev
 - 默认：没有 API key 时，先从 Wikimedia Commons 搜索并下载真实图片到 `.wx-editor/assets`；如果没有找到合适图片，再生成本地 SVG 占位图。
 - OpenAI 图片 API：配置 API key 后，使用 GPT Image 生成 PNG 图片，保存到 `.wx-editor/assets` 并插入正文。
 - Codex 对话辅助：用户可以回到 Codex 对话里要求 Codex 用当前对话的图片能力生成图片，再由 Codex 保存并插入文章。这不是浏览器按钮可直接调用的稳定 API。
+
+使用 Codex 对话辅助生图时，在浏览器配图面板点击 `请求 Codex 生图`，然后回到 Codex 说：
+
+```text
+请处理 wx-edit 的最新配图请求，使用 imagegen skill 生成图片，保存到 .wx-editor/assets，并插入文章。
+```
 
 启用真实图片生成：
 
