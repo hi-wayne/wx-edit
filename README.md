@@ -10,11 +10,33 @@
 请从 https://github.com/hi-wayne/wx-edit 下载公众号AI心流写作台，完成安装和启动，然后告诉我打开哪个本地网址使用。
 ```
 
-Codex 应该自动完成：
+Codex 会自动判断用户电脑有没有 `git`。有 `git` 时可以这样：
 
 ```bash
 git clone https://github.com/hi-wayne/wx-edit.git
 cd wx-edit
+bash scripts/bootstrap.sh
+```
+
+没有 `git` 时，Codex 应该改用 GitHub 的 ZIP 下载：
+
+```bash
+mkdir -p wx-edit-download
+cd wx-edit-download
+curl -L https://github.com/hi-wayne/wx-edit/archive/refs/heads/main.zip -o wx-edit.zip
+unzip -q wx-edit.zip
+cd wx-edit-main
+bash scripts/bootstrap.sh
+```
+
+如果是 Windows 且没有 `curl/unzip`，Codex 可以用 PowerShell：
+
+```powershell
+mkdir wx-edit-download
+cd wx-edit-download
+Invoke-WebRequest -Uri https://github.com/hi-wayne/wx-edit/archive/refs/heads/main.zip -OutFile wx-edit.zip
+Expand-Archive wx-edit.zip -DestinationPath .
+cd wx-edit-main
 bash scripts/bootstrap.sh
 ```
 
