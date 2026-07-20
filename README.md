@@ -4,7 +4,24 @@
 
 ## 给完全不懂 GitHub 的用户
 
-用户只需要先安装并登录 ChatGPT Codex，然后新建一个 Codex 项目，对 Codex 说这一句话：
+1. 先下载安装 Codex：
+
+   https://openai.com/zh-Hans-CN/codex/
+
+2. 打开 Codex，并用自己的 ChatGPT/Codex 账号登录。
+
+3. 在 Codex 里创建一个新项目：
+
+   - 打开 Codex
+   - 选择创建新项目或新任务
+   - 如果 Codex 让你选择本地文件夹，可以新建一个空文件夹，例如 `wx-edit-workspace`
+   - 进入项目后，把下面这句话发给 Codex
+
+```text
+请从 https://github.com/hi-wayne/wx-edit 下载公众号AI心流写作台，完成安装和启动，然后告诉我打开哪个本地网址使用。
+```
+
+如果用户已经在 Codex 项目里，也可以直接对 Codex 说这一句话：
 
 ```text
 请从 https://github.com/hi-wayne/wx-edit 下载公众号AI心流写作台，完成安装和启动，然后告诉我打开哪个本地网址使用。
