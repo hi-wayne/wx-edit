@@ -164,8 +164,10 @@ pnpm dev
 编辑器支持三种配图方式：
 
 - 默认：没有 API key 时，先从 Wikimedia Commons 搜索并下载真实图片到 `.wx-editor/assets`；如果没有找到合适图片，再生成本地 SVG 占位图。
-- OpenAI 图片 API：配置 API key 后，使用 GPT Image 生成 PNG 图片，保存到 `.wx-editor/assets` 并插入正文。
-- Codex 对话辅助：用户可以回到 Codex 对话里要求 Codex 用当前对话的图片能力生成图片，再由 Codex 保存并插入文章。这不是浏览器按钮可直接调用的稳定 API。
+- Codex 对话辅助：如果你的 Codex 客户端带有内置 `imagegen` skill，可以回到 Codex 对话里要求 Codex 生成图片、保存到 `.wx-editor/assets` 并插入文章。这个路径使用 Codex 当前对话能力，不需要 OpenAI API token。
+- OpenAI 图片 API：如果你自己有 API key，也可以配置后让浏览器按钮直接调用 GPT Image 生成 PNG 图片，保存到 `.wx-editor/assets` 并插入正文。
+
+新用户只安装 Codex 时，`bash scripts/bootstrap.sh` 会自动安装本项目的 `wx-article` skill，并检测本机 Codex 是否带有 `imagegen`。`imagegen` 是 Codex 客户端内置能力，不是本仓库能替用户强行安装的 npm 依赖；如果检测不到，编辑器仍然能正常写作、改写、排版和搜索真实配图，只是 `请求 Codex 生图` 需要用户更新或重启 Codex 后再用。
 
 使用 Codex 对话辅助生图时，在浏览器配图面板点击 `请求 Codex 生图`，然后回到 Codex 说：
 

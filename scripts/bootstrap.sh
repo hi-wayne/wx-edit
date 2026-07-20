@@ -40,6 +40,15 @@ if command -v codex >/dev/null 2>&1; then
     echo "Run this once if AI buttons cannot call Codex:"
     echo "    codex login"
   fi
+
+  CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+  if [ -d "$CODEX_HOME/skills/.system/imagegen" ] || [ -d "$CODEX_HOME/skills/imagegen" ]; then
+    echo "==> Codex imagegen skill found."
+  else
+    echo "==> Codex imagegen skill was not found."
+    echo "The editor still works. Text AI and Wikimedia image search do not need it."
+    echo "For Codex-assisted AI image generation, update/restart Codex and use a build that includes the imagegen skill."
+  fi
 else
   echo "==> Codex CLI was not found in PATH."
   echo "Install/open Codex and log in before using AI buttons."

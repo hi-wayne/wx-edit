@@ -55,7 +55,7 @@ Legacy block types:
 - Preserve the user's voice unless the user explicitly asks for a stronger rewrite.
 - When the user asks for style changes, use ordinary article structures such as headings, quotes, bold text, lists, separators, or figures. Avoid turning writing into rigid slots.
 - When the user asks for a picture, either insert a `<figure>` with a local path/URL provided by the user or create a clear image generation/search brief.
-- When the local editor sends an AI image request, use the user's image prompt plus selected text/context. If image generation is available, create the image asset and insert a `<figure>` near the selection. If not, insert a clear image placeholder and prompt.
+- When the local editor sends an AI image request, use the user's image prompt plus selected text/context. If the active Codex session has the built-in `imagegen` skill, create the image asset and insert a `<figure>` near the selection. If `imagegen` is not available, tell the user to update/restart Codex and use the editor's Wikimedia image search or the optional OpenAI API key path for now.
 - In the local editor, `WX_IMAGE_PROVIDER=openai-api` plus `OPENAI_API_KEY` enables real GPT Image generation into `.wx-editor/assets`. Without that API key path, the editor searches Wikimedia Commons for real image assets and falls back to a local SVG placeholder when no suitable image is found. The built-in Codex conversation image tool can be used by the active Codex agent, but it is not a stable local HTTP API exposed through `codex exec`.
 - When the user asks for one-click typesetting, improve the existing `contentHtml` hierarchy without changing meaning: add headings, split long paragraphs, add lists, emphasize key sentences, and insert separators sparingly.
 - When the user asks for a summary/摘要 for publishing, update `digest` only. When the user asks for an opening/导语, write it into `contentHtml`.
@@ -105,6 +105,8 @@ When `.wx-editor/image-request.json` exists and the user asks Codex to process t
 5. Insert a `<figure><img src="/assets/<filename>" alt="..."><figcaption>...</figcaption></figure>` into `.wx-editor/article.json` near the selected content. If no selection exists, insert it near the most relevant paragraph or the latest useful article position.
 6. Mark the image request status as `done` and include the saved asset path.
 7. If the local editor is running, call its article update/export API or tell the user to refresh.
+
+If the active Codex session does not expose `imagegen`, do not ask a normal Codex subscriber for an API token. Explain that `imagegen` is provided by the Codex app/runtime, ask them to update or restart Codex, and suggest the editor's `自动配图` Wikimedia search as the immediate fallback.
 
 ## Handling Browser AI Requests
 
