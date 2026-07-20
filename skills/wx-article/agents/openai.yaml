@@ -1,0 +1,7 @@
+interface:
+  display_name: "Wx Article"
+  short_description: "微信公众号写作、预览与排版导出"
+  brand_color: "#0F766E"
+  default_prompt: "Use $wx-article to draft, polish, preview, and export a WeChat Official Account article."
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,15 @@
+{
+  "name": "wx-codex-editor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Codex-assisted local editor for WeChat Official Account articles.",
+  "scripts": {
+    "setup": "bash scripts/bootstrap.sh",
+    "start": "pnpm dev",
+    "dev": "pnpm --filter @wx-codex/editor dev",
+    "build": "pnpm -r build",
+    "check": "pnpm -r check",
+    "install:skill": "bash scripts/install-skill.sh"
+  },
+  "packageManager": "pnpm@10.33.0"
+}
