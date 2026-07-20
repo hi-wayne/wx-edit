@@ -680,6 +680,72 @@ textarea:focus {
   color: #314f87;
 }
 
+.codexGuide {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #bdd8d3;
+  border-radius: 6px;
+  background: #f5fbf9;
+  color: #263034;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.codexGuideHeader,
+.codexGuideFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.codexGuideHeader strong {
+  color: #0f5f59;
+}
+
+.codexGuideHeader button {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid #cbd7d1;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #526066;
+}
+
+.codexGuide ol {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.codexPromptBox {
+  padding: 10px;
+  border: 1px solid #d8e0dc;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #263034;
+  word-break: break-word;
+}
+
+.codexGuideFooter {
+  color: #718086;
+  font-size: 12px;
+}
+
+.codexGuideFooter button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid #0f766e;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f5f59;
+}
+
 .traceBox {
   display: grid;
   gap: 6px;

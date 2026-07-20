@@ -108,6 +108,12 @@ When `.wx-editor/image-request.json` exists and the user asks Codex to process t
 
 If the active Codex session does not expose `imagegen`, do not ask a normal Codex subscriber for an API token. Explain that `imagegen` is provided by the Codex app/runtime, ask them to update or restart Codex, and suggest the editor's `自动配图` Wikimedia search as the immediate fallback.
 
+The browser tells the user to return to Codex and paste this style of request:
+
+```text
+请处理 wx-edit 的最新配图请求：读取 .wx-editor/image-request.json，使用 imagegen skill 生成一张适合微信公众号正文的真实图片，保存到 .wx-editor/assets，然后把图片作为 figure 插入 .wx-editor/article.json 对应位置。完成后告诉我回到 http://localhost:3000/ 刷新预览。
+```
+
 ## Handling Browser AI Requests
 
 When `.wx-editor/request.json` exists:

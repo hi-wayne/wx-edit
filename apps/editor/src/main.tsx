@@ -249,6 +249,7 @@ function App() {
   const [insertPrompt, setInsertPrompt] = useState("");
   const [imagePrompt, setImagePrompt] = useState("");
   const [notice, setNotice] = useState("");
+  const [codexImageGuide, setCodexImageGuide] = useState<{ prompt: string; path: string } | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [showCustomBox, setShowCustomBox] = useState(false);
   const [showInsertBox, setShowInsertBox] = useState(false);
@@ -1065,10 +1066,13 @@ function App() {
       })
     });
     const result = await res.json() as { codexPrompt?: string; imageRequestPath?: string };
+    const codexPrompt = result.codexPrompt || "请处理 wx-edit 的最新配图请求，使用 imagegen skill 生成图片，保存到 .wx-editor/assets，并插入文章。";
+    const imageRequestPath = result.imageRequestPath ?? ".wx-editor/image-request.json";
     setShowImageBox(false);
     setImagePrompt("");
-    setNotice(result.codexPrompt || "已生成 Codex 生图请求。请回到 Codex 处理最新配图请求。");
-    appendTraceItem(setAiTrace, `已写入 Codex 生图请求：${result.imageRequestPath ?? ".wx-editor/image-request.json"}`);
+    setCodexImageGuide({ prompt: codexPrompt, path: imageRequestPath });
+    setNotice("已生成 Codex 生图请求。请按下方步骤回到 Codex 对话处理。");
+    appendTraceItem(setAiTrace, `已写入 Codex 生图请求：${imageRequestPath}`);
   }
 
   function submitInsertRequest() {
@@ -1482,6 +1486,29 @@ function App() {
               </div>
             )}
             {notice && <div className="notice">{notice}</div>}
+            {codexImageGuide && (
+              <div className="codexGuide">
+                <div className="codexGuideHeader">
+                  <strong>下一步：让 Codex 生成并插入图片</strong>
+                  <button aria-label="关闭 Codex 生图步骤" onClick={() => setCodexImageGuide(null)}>
+                    <X size={15} />
+                  </button>
+                </div>
+                <ol>
+                  <li>回到当前这个 Codex 项目的对话窗口。</li>
+                  <li>把下面这句话发给 Codex。</li>
+                  <li>等待 Codex 生成图片并写回文章后，回到浏览器预览刷新查看。</li>
+                </ol>
+                <div className="codexPromptBox">{codexImageGuide.prompt}</div>
+                <div className="codexGuideFooter">
+                  <span>请求文件：{codexImageGuide.path}</span>
+                  <button onClick={() => void navigator.clipboard?.writeText(codexImageGuide.prompt)}>
+                    <Clipboard size={14} />
+                    <span>复制这句话</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
 
         </aside>

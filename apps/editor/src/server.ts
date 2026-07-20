@@ -856,7 +856,7 @@ app.post("/api/imagegen-request", async (req, res) => {
   res.json({
     ok: true,
     imageRequestPath,
-    codexPrompt: "请处理 wx-edit 的最新配图请求，使用 imagegen skill 生成图片，保存到 .wx-editor/assets，并插入文章。"
+    codexPrompt: "请处理 wx-edit 的最新配图请求：读取 .wx-editor/image-request.json，使用 imagegen skill 生成一张适合微信公众号正文的真实图片，保存到 .wx-editor/assets，然后把图片作为 figure 插入 .wx-editor/article.json 对应位置。完成后告诉我回到 http://localhost:3000/ 刷新预览。"
   });
 });
 

@@ -169,11 +169,18 @@ pnpm dev
 
 新用户只安装 Codex 时，`bash scripts/bootstrap.sh` 会自动安装本项目的 `wx-article` skill，并检测本机 Codex 是否带有 `imagegen`。`imagegen` 是 Codex 客户端内置能力，不是本仓库能替用户强行安装的 npm 依赖；如果检测不到，编辑器仍然能正常写作、改写、排版和搜索真实配图，只是 `请求 Codex 生图` 需要用户更新或重启 Codex 后再用。
 
-使用 Codex 对话辅助生图时，在浏览器配图面板点击 `请求 Codex 生图`，然后回到 Codex 说：
+使用 Codex 对话辅助生图时，按这几步做：
+
+1. 在浏览器编辑器里点击 `AI 插图`，填写或留空配图提示词。
+2. 点击 `请求 Codex 生图`。编辑器会把请求写入 `.wx-editor/image-request.json`，右侧会出现“下一步：让 Codex 生成并插入图片”的操作卡片。
+3. 回到当前这个 Codex 项目的对话窗口。
+4. 把操作卡片里的这句话发给 Codex：
 
 ```text
-请处理 wx-edit 的最新配图请求，使用 imagegen skill 生成图片，保存到 .wx-editor/assets，并插入文章。
+请处理 wx-edit 的最新配图请求：读取 .wx-editor/image-request.json，使用 imagegen skill 生成一张适合微信公众号正文的真实图片，保存到 .wx-editor/assets，然后把图片作为 figure 插入 .wx-editor/article.json 对应位置。完成后告诉我回到 http://localhost:3000/ 刷新预览。
 ```
+
+5. 等 Codex 处理完成后，回到浏览器 `http://localhost:3000/`，刷新或等待预览自动更新。
 
 启用真实图片生成：
 
