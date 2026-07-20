@@ -7,13 +7,19 @@ cd "$ROOT_DIR"
 echo "==> 公众号AI心流写作台 bootstrap"
 
 if ! command -v node >/dev/null 2>&1; then
-  echo "Node.js is required. Please install Node.js 20+ first: https://nodejs.org/"
+  echo "Node.js 20+ is required before this local editor can run."
+  echo "Ask Codex to install Node.js 20+ for this computer, or install Node.js LTS from:"
+  echo "    https://nodejs.org/"
+  echo "Then run this again:"
+  echo "    bash scripts/bootstrap.sh"
   exit 1
 fi
 
 NODE_MAJOR="$(node -p "Number(process.versions.node.split('.')[0])")"
 if [ "$NODE_MAJOR" -lt 20 ]; then
   echo "Node.js 20+ is required. Current version: $(node -v)"
+  echo "Ask Codex to upgrade Node.js to 20+, then run this again:"
+  echo "    bash scripts/bootstrap.sh"
   exit 1
 fi
 

@@ -27,7 +27,9 @@
 请从 https://github.com/hi-wayne/wx-edit 下载公众号AI心流写作台，完成安装和启动，然后告诉我打开哪个本地网址使用。
 ```
 
-Codex 会自动判断用户电脑有没有 `git`。有 `git` 时可以这样：
+Codex 会自动判断用户电脑有没有 `git` 和 Node.js 20+。用户不需要 GitHub 账号；公共仓库可以直接下载。新电脑如果还没有 Node.js，Codex 会先帮用户安装或提示安装 Node.js 20+，然后再启动服务。
+
+有 `git` 时可以这样：
 
 ```bash
 git clone https://github.com/hi-wayne/wx-edit.git
@@ -67,6 +69,12 @@ http://localhost:3000/
 
 ```bash
 bash scripts/bootstrap.sh
+```
+
+如果启动脚本提示缺少 Node.js，请让 Codex 先安装 Node.js 20+，再重新运行：
+
+```text
+请先帮我安装 Node.js 20+，然后重新运行 bash scripts/bootstrap.sh 启动这个项目。
 ```
 
 ## 目标工作流

@@ -33,13 +33,29 @@ When a user asks Codex to install or start this project, do the following withou
    cd wx-edit-main
    ```
 
-2. Run the bootstrap script:
+2. Ensure Node.js 20+ is available.
+
+   Check first:
+
+   ```bash
+   node -v
+   ```
+
+   If Node.js is missing or older than 20, install Node.js 20+ before running the project. Use the safest available method for the user's machine:
+
+   - macOS with Homebrew: `brew install node@20` or `brew install node`
+   - Windows with winget: `winget install OpenJS.NodeJS.LTS`
+   - Otherwise, direct the user to install Node.js LTS from `https://nodejs.org/`
+
+   After installing Node.js, continue with the bootstrap script.
+
+3. Run the bootstrap script:
 
    ```bash
    bash scripts/bootstrap.sh
    ```
 
-3. Tell the user to open:
+4. Tell the user to open:
 
    ```text
    http://localhost:3000/
@@ -48,6 +64,8 @@ When a user asks Codex to install or start this project, do the following withou
 Notes:
 
 - The default AI path uses the user's local Codex login through `codex exec`; no OpenAI API key is required for text editing.
+- A GitHub account is not required for this public repository. If `git` is missing, use the ZIP download path.
+- The only required runtime prerequisite is Node.js 20+. `bootstrap.sh` handles pnpm through corepack when possible.
 - If `codex login` has not been completed, ask the user to run it once in Codex or the terminal.
 - The project installs its own `wx-article` Codex skill. It does not install Codex's built-in `imagegen` skill, because that comes from the user's Codex app/runtime.
 - Do not ask normal Codex subscribers for an OpenAI API key when they choose `请求 Codex 生图`. Check whether the active Codex session has the `imagegen` skill. If it does, process `.wx-editor/image-request.json` with that skill, save the generated asset under `.wx-editor/assets/`, and insert it into the article.
