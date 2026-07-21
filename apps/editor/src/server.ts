@@ -40,6 +40,19 @@ interface AiApplyRequest {
 
 type StreamWriter = (message: string) => void;
 
+function effectiveAllowImageGeneration(input: AiApplyRequest): boolean {
+  return input.allowImageGeneration === true
+    && input.selectionTarget !== "title"
+    && input.operation !== "title-insert";
+}
+
+function normalizeAiRequest(input: AiApplyRequest): AiApplyRequest {
+  return {
+    ...input,
+    allowImageGeneration: effectiveAllowImageGeneration(input)
+  };
+}
+
 async function ensureState() {
   await fs.mkdir(stateDir, { recursive: true });
   await fs.mkdir(assetsDir, { recursive: true });
@@ -197,9 +210,7 @@ function generatedArticleImageSvg(title: string, subtitle: string): string {
 }
 
 async function createGeneratedImageAsset(input: AiApplyRequest): Promise<{ url: string; prompt: string } | null> {
-  if (input.operation === "title-insert") return null;
-  if (input.selectionTarget === "title") return null;
-  if (input.allowImageGeneration !== true) return null;
+  if (!effectiveAllowImageGeneration(input)) return null;
   if (!wantsImage(input)) return null;
   await ensureState();
   const topic = (input.selectedText || input.articleTitle || "公众号配图").replace(/\s+/g, " ").trim().slice(0, 28);
@@ -314,15 +325,29 @@ function ensureGeneratedImageInHtml(contentHtml: string, image: { url: string; p
   return `${contentHtml}\n${figure}`;
 }
 
-function stripGeneratedMediaWhenDisallowed(contentHtml: string, input: AiApplyRequest): string {
-  if (input.allowImageGeneration !== false) return contentHtml;
+function mediaSources(contentHtml: string): Set<string> {
+  const sources = new Set<string>();
+  for (const match of contentHtml.matchAll(/<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)) {
+    sources.add(match[1]);
+  }
+  return sources;
+}
+
+function stripGeneratedMediaWhenDisallowed(contentHtml: string, input: AiApplyRequest, originalHtml = ""): string {
+  if (effectiveAllowImageGeneration(input)) return contentHtml;
+  const originalSources = mediaSources(originalHtml);
   return contentHtml
-    .replace(/<figure[^>]*data-ai-result=["']true["'][\s\S]*?<\/figure>/gi, "")
-    .replace(/<img[^>]*data-ai-result=["']true["'][^>]*>/gi, "");
+    .replace(/<figure\b[\s\S]*?<\/figure>/gi, (figure) => {
+      const figureSources = [...figure.matchAll(/<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)].map((match) => match[1]);
+      if (figureSources.length === 0) return originalHtml.includes(figure) ? figure : "";
+      return figureSources.every((src) => originalSources.has(src)) ? figure : "";
+    })
+    .replace(/<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi, (image, src) => originalSources.has(src) ? image : "")
+    .replace(/\sdata-ai-result=["']true["']/gi, "");
 }
 
 function stripAllMediaFromFragment(fragmentHtml: string, input: AiApplyRequest): string {
-  if (input.allowImageGeneration !== false) return fragmentHtml;
+  if (effectiveAllowImageGeneration(input)) return fragmentHtml;
   return fragmentHtml
     .replace(/<figure\b[\s\S]*?<\/figure>/gi, "")
     .replace(/<img\b[^>]*>/gi, "");
@@ -382,7 +407,7 @@ function buildAiInsertPrompt(input: AiApplyRequest, article: ArticleDocument): s
     "Use WeChat-friendly HTML such as p, h2, h3, blockquote, ul, ol, strong, em, and figure.",
     "Mark the top-level inserted element or wrapper with data-ai-result=\"true\".",
     "If allowImageGeneration is false, do not create, insert, or suggest any image, figure, img, cover, or visual asset. Insert text only.",
-    "If generatedImageUrl is provided for an image request, return a figure using that URL.",
+    "Only if allowImageGeneration is true and generatedImageUrl is provided may you return a figure using that URL.",
     "Return only compact JSON with keys: insertHtml, note.",
     "",
     JSON.stringify({
@@ -440,9 +465,10 @@ function buildAiPrompt(input: AiApplyRequest, article: ArticleDocument): string 
     "If contentHtml contains an element with data-ai-insert-anchor=\"true\", insert the requested new content exactly at that anchor position, remove the anchor element, and do not rewrite unrelated content.",
     "For body edits, mark the final changed or inserted region with data-ai-result=\"true\" on the nearest edited element such as p, h2, blockquote, figure, ul, or ol. Use this marker only once when possible.",
     "If allowImageGeneration is false, do not create, insert, or suggest any image, figure, img, cover, or visual asset. Insert text only.",
+    "If selectionTarget is title, keep contentHtml and digest unchanged. Return only an updated title plus the original contentHtml and digest.",
     "If asked for a publishing summary, update digest only and do not insert it into contentHtml.",
-    "If generatedImageUrl is provided for an image request, insert a <figure data-ai-result=\"true\"><img src=\"generatedImageUrl\" alt=\"...\"><figcaption>...</figcaption></figure> near the relevant passage.",
-    "If asked for an image and generatedImageUrl is missing, insert a <figure data-ai-result=\"true\"> with an <img src=\"/api/placeholder-image?title=short-image-topic\" alt=\"...\"> and a figcaption containing the concrete image direction near the relevant passage.",
+    "Only if allowImageGeneration is true and generatedImageUrl is provided may you insert a <figure data-ai-result=\"true\"><img src=\"generatedImageUrl\" alt=\"...\"><figcaption>...</figcaption></figure> near the relevant passage.",
+    "If allowImageGeneration is true but generatedImageUrl is missing, do not invent placeholder images. Describe the needed image in existing text only when the user explicitly requested image planning.",
     "Return only compact JSON with keys: title, digest, contentHtml, note.",
     "",
     JSON.stringify({
@@ -640,18 +666,19 @@ async function runOpenAiEdit(prompt: string): Promise<string> {
 }
 
 async function applyAiEdit(input: AiApplyRequest): Promise<ArticleDocument> {
+  const safeInput = normalizeAiRequest(input);
   const current = await readArticle();
   const article: ArticleDocument = {
     ...current,
-    title: input.articleTitle ?? current.title,
-    digest: input.digest ?? current.digest,
-    contentHtml: input.contentHtml ?? current.contentHtml ?? "",
+    title: safeInput.articleTitle ?? current.title,
+    digest: safeInput.digest ?? current.digest,
+    contentHtml: safeInput.contentHtml ?? current.contentHtml ?? "",
     blocks: []
   };
 
-  const generatedImage = await createGeneratedImageAsset(input);
-  if (input.operation === "title-insert") {
-    const prompt = buildAiTitleInsertPrompt(input, article);
+  const generatedImage = await createGeneratedImageAsset(safeInput);
+  if (safeInput.operation === "title-insert") {
+    const prompt = buildAiTitleInsertPrompt(safeInput, article);
     const raw = process.env.WX_AI_PROVIDER === "openai-api"
       ? await runOpenAiEdit(prompt)
       : await runCodexEdit(prompt);
@@ -659,15 +686,15 @@ async function applyAiEdit(input: AiApplyRequest): Promise<ArticleDocument> {
     const insertText = stripHtml(typeof parsed.insertText === "string" ? parsed.insertText : "");
     const nextArticle: ArticleDocument = {
       ...article,
-      title: insertTextAtIndex(article.title ?? "", insertText, input.titleInsertIndex ?? (article.title ?? "").length),
+      title: insertTextAtIndex(article.title ?? "", insertText, safeInput.titleInsertIndex ?? (article.title ?? "").length),
       blocks: []
     };
     await writeArticle(nextArticle);
     return nextArticle;
   }
-  if (input.operation === "insert") {
+  if (safeInput.operation === "insert") {
     const prompt = buildAiInsertPrompt({
-      ...input,
+      ...safeInput,
       generatedImageUrl: generatedImage?.url,
       generatedImagePrompt: generatedImage?.prompt
     }, article);
@@ -677,7 +704,7 @@ async function applyAiEdit(input: AiApplyRequest): Promise<ArticleDocument> {
     const parsed = parseJsonObject(raw) as { insertHtml?: string; note?: string };
     const fragment = generatedImage && !String(parsed.insertHtml ?? "").includes(generatedImage.url)
       ? imageFigure(generatedImage)
-      : normalizeInsertedFragment(typeof parsed.insertHtml === "string" ? parsed.insertHtml : "", input);
+      : normalizeInsertedFragment(typeof parsed.insertHtml === "string" ? parsed.insertHtml : "", safeInput);
     const nextArticle: ArticleDocument = {
       ...article,
       contentHtml: insertHtmlAtAnchor(article.contentHtml ?? "", fragment),
@@ -688,7 +715,7 @@ async function applyAiEdit(input: AiApplyRequest): Promise<ArticleDocument> {
   }
 
   const prompt = buildAiPrompt({
-    ...input,
+    ...safeInput,
     generatedImageUrl: generatedImage?.url,
     generatedImagePrompt: generatedImage?.prompt
   }, article);
@@ -699,14 +726,17 @@ async function applyAiEdit(input: AiApplyRequest): Promise<ArticleDocument> {
   const nextArticle: ArticleDocument = {
     ...article,
     title: typeof parsed.title === "string" ? parsed.title : article.title,
-    digest: typeof parsed.digest === "string" ? parsed.digest : article.digest,
-    contentHtml: stripGeneratedMediaWhenDisallowed(
-      ensureGeneratedImageInHtml(
-        typeof parsed.contentHtml === "string" ? parsed.contentHtml : article.contentHtml ?? "",
-        generatedImage
+    digest: safeInput.selectionTarget === "title" ? article.digest : typeof parsed.digest === "string" ? parsed.digest : article.digest,
+    contentHtml: safeInput.selectionTarget === "title"
+      ? article.contentHtml ?? ""
+      : stripGeneratedMediaWhenDisallowed(
+        ensureGeneratedImageInHtml(
+          typeof parsed.contentHtml === "string" ? parsed.contentHtml : article.contentHtml ?? "",
+          generatedImage
+        ),
+        safeInput,
+        article.contentHtml ?? ""
       ),
-      input
-    ),
     blocks: []
   };
   await writeArticle(nextArticle);
@@ -714,21 +744,22 @@ async function applyAiEdit(input: AiApplyRequest): Promise<ArticleDocument> {
 }
 
 async function applyAiEditStream(input: AiApplyRequest, onTrace: StreamWriter): Promise<ArticleDocument> {
+  const safeInput = normalizeAiRequest(input);
   const current = await readArticle();
   const article: ArticleDocument = {
     ...current,
-    title: input.articleTitle ?? current.title,
-    digest: input.digest ?? current.digest,
-    contentHtml: input.contentHtml ?? current.contentHtml ?? "",
+    title: safeInput.articleTitle ?? current.title,
+    digest: safeInput.digest ?? current.digest,
+    contentHtml: safeInput.contentHtml ?? current.contentHtml ?? "",
     blocks: []
   };
 
-  const generatedImage = await createGeneratedImageAsset(input);
+  const generatedImage = await createGeneratedImageAsset(safeInput);
   if (generatedImage) {
     onTrace(`已生成本地配图素材：${generatedImage.url}`);
   }
-  if (input.operation === "title-insert") {
-    const prompt = buildAiTitleInsertPrompt(input, article);
+  if (safeInput.operation === "title-insert") {
+    const prompt = buildAiTitleInsertPrompt(safeInput, article);
     onTrace("已锁定标题光标位置，正在生成标题插入文本。");
     const raw = process.env.WX_AI_PROVIDER === "openai-api"
       ? await runOpenAiEdit(prompt)
@@ -738,15 +769,15 @@ async function applyAiEditStream(input: AiApplyRequest, onTrace: StreamWriter): 
     const insertText = stripHtml(typeof parsed.insertText === "string" ? parsed.insertText : "");
     const nextArticle: ArticleDocument = {
       ...article,
-      title: insertTextAtIndex(article.title ?? "", insertText, input.titleInsertIndex ?? (article.title ?? "").length),
+      title: insertTextAtIndex(article.title ?? "", insertText, safeInput.titleInsertIndex ?? (article.title ?? "").length),
       blocks: []
     };
     await writeArticle(nextArticle);
     return nextArticle;
   }
-  if (input.operation === "insert") {
+  if (safeInput.operation === "insert") {
     const prompt = buildAiInsertPrompt({
-      ...input,
+      ...safeInput,
       generatedImageUrl: generatedImage?.url,
       generatedImagePrompt: generatedImage?.prompt
     }, article);
@@ -758,7 +789,7 @@ async function applyAiEditStream(input: AiApplyRequest, onTrace: StreamWriter): 
     const parsed = parseJsonObject(raw) as { insertHtml?: string; note?: string };
     const fragment = generatedImage && !String(parsed.insertHtml ?? "").includes(generatedImage.url)
       ? imageFigure(generatedImage)
-      : normalizeInsertedFragment(typeof parsed.insertHtml === "string" ? parsed.insertHtml : "", input);
+      : normalizeInsertedFragment(typeof parsed.insertHtml === "string" ? parsed.insertHtml : "", safeInput);
     const nextArticle: ArticleDocument = {
       ...article,
       contentHtml: insertHtmlAtAnchor(article.contentHtml ?? "", fragment),
@@ -769,7 +800,7 @@ async function applyAiEditStream(input: AiApplyRequest, onTrace: StreamWriter): 
   }
 
   const prompt = buildAiPrompt({
-    ...input,
+    ...safeInput,
     generatedImageUrl: generatedImage?.url,
     generatedImagePrompt: generatedImage?.prompt
   }, article);
@@ -782,14 +813,17 @@ async function applyAiEditStream(input: AiApplyRequest, onTrace: StreamWriter): 
   const nextArticle: ArticleDocument = {
     ...article,
     title: typeof parsed.title === "string" ? parsed.title : article.title,
-    digest: typeof parsed.digest === "string" ? parsed.digest : article.digest,
-    contentHtml: stripGeneratedMediaWhenDisallowed(
-      ensureGeneratedImageInHtml(
-        typeof parsed.contentHtml === "string" ? parsed.contentHtml : article.contentHtml ?? "",
-        generatedImage
+    digest: safeInput.selectionTarget === "title" ? article.digest : typeof parsed.digest === "string" ? parsed.digest : article.digest,
+    contentHtml: safeInput.selectionTarget === "title"
+      ? article.contentHtml ?? ""
+      : stripGeneratedMediaWhenDisallowed(
+        ensureGeneratedImageInHtml(
+          typeof parsed.contentHtml === "string" ? parsed.contentHtml : article.contentHtml ?? "",
+          generatedImage
+        ),
+        safeInput,
+        article.contentHtml ?? ""
       ),
-      input
-    ),
     blocks: []
   };
   await writeArticle(nextArticle);

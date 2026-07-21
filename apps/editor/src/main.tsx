@@ -952,6 +952,9 @@ function App() {
       "正在调用本机 Codex..."
     ]);
     const contentHtml = editorRef.current?.innerHTML ?? state.article.contentHtml ?? "";
+    const effectiveAllowImageGeneration = selection?.target === "title" || options.operation === "title-insert"
+      ? false
+      : options.allowImageGeneration === true;
     const payload = {
       articleTitle: state.article.title,
       digest: state.article.digest,
@@ -963,7 +966,7 @@ function App() {
       titleInsertIndex: options.titleInsertIndex,
       instruction: instruction.trim(),
       contextMode: options.contextMode ?? (selection ? (useArticleContextForSelection ? "article-context" : "selection-only") : "article-context"),
-      allowImageGeneration: options.allowImageGeneration
+      allowImageGeneration: effectiveAllowImageGeneration
     };
     try {
       const direct = await fetch("/api/ai/apply-stream", {
@@ -998,7 +1001,7 @@ function App() {
             setState(next);
             if (editorRef.current) {
               editorRef.current.innerHTML = next.article.contentHtml ?? "";
-              const cleanArticle = focusAiResult(next, options.allowImageGeneration === true);
+              const cleanArticle = focusAiResult(next, effectiveAllowImageGeneration);
               if (cleanArticle.contentHtml !== next.article.contentHtml) {
                 setState((prev) => (prev ? { ...prev, article: cleanArticle } : prev));
                 void persist(cleanArticle);
@@ -1045,9 +1048,12 @@ function App() {
       ? "默认只处理当前选区；除非用户明确要求全文、标题或摘要，否则不要改选区外内容。"
       : "当前没有选区；请按用户要求处理全文或在合适位置补充内容，但不要无关重写。";
     const contextRule = selection ? selectionContextRules(useArticleContextForSelection) : "当前没有选区；请读取全文并按用户要求选择合理作用范围。";
-    const mediaRule = isImageInstruction(userPrompt)
-      ? "用户要求涉及图片时，可以插入 figure；图片说明要具体、克制，图片不要有文字、水印、二维码或公众号界面。"
-      : "用户没有明确要求图片时，不要插入 figure、img、封面或配图。";
+    const canUseMedia = selection?.target !== "title" && isImageInstruction(userPrompt);
+    const mediaRule = canUseMedia
+      ? "用户明确要求图片/配图，可以插入 figure；图片说明要具体、克制，图片不要有文字、水印、二维码或公众号界面。"
+      : selection?.target === "title"
+        ? "当前作用区域是标题，禁止插入 figure、img、封面或配图；即使用户提到图片，也只生成适合标题的文字。"
+        : "用户没有明确要求图片时，不要插入 figure、img、封面或配图。";
     return [
       "自定义编辑请求。",
       contextRule,
@@ -1505,7 +1511,7 @@ function App() {
                     onChange={(event) => setCustomPrompt(event.target.value)}
                   />
                 </label>
-                <button className="primary" disabled={isAiRunning || !customPrompt.trim()} onClick={() => void submitAiRequest(buildCustomInstruction(customPrompt), { allowImageGeneration: isImageInstruction(customPrompt) })}>
+                <button className="primary" disabled={isAiRunning || !customPrompt.trim()} onClick={() => void submitAiRequest(buildCustomInstruction(customPrompt), { allowImageGeneration: selection?.target !== "title" && isImageInstruction(customPrompt) })}>
                   <MessageSquareText size={17} />
                   <span>{isAiRunning ? "处理中" : "提交自定义要求给ai"}</span>
                 </button>
