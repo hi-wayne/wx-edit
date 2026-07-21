@@ -9,6 +9,7 @@ import {
   Clipboard,
   Download,
   Eraser,
+  FilePlus,
   HelpCircle,
   Heading3,
   IndentDecrease,
@@ -331,6 +332,18 @@ function legacyBlocksToHtml(article: ArticleDocument): string {
     .join("\n");
 }
 
+function createBlankArticle(): ArticleDocument {
+  return {
+    title: "",
+    author: "",
+    digest: "",
+    cover: "",
+    sourceUrl: "",
+    contentHtml: "<p><br></p>",
+    blocks: []
+  };
+}
+
 function App() {
   const [state, setState] = useState<ApiState | null>(null);
   const [selection, setSelection] = useState<EditorSelection | null>(null);
@@ -347,6 +360,8 @@ function App() {
   const [showInsertBox, setShowInsertBox] = useState(false);
   const [showImageBox, setShowImageBox] = useState(false);
   const [showPromptGuide, setShowPromptGuide] = useState(false);
+  const [showNewArticleModal, setShowNewArticleModal] = useState(false);
+  const [clearStyleOnNewArticle, setClearStyleOnNewArticle] = useState(false);
   const [isAiRunning, setIsAiRunning] = useState(false);
   const [aiTrace, setAiTrace] = useState<AiTraceItem[]>([]);
   const [traceCollapsed, setTraceCollapsed] = useState(false);
@@ -456,6 +471,50 @@ function App() {
     setState((prev) => (prev ? { ...prev, article } : prev));
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => void persist(article), 450);
+  }
+
+  async function createNewArticle() {
+    if (!state) return;
+    const blankArticle = createBlankArticle();
+    if (saveTimer.current) {
+      window.clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    if (traceCollapseTimer.current) {
+      window.clearTimeout(traceCollapseTimer.current);
+      traceCollapseTimer.current = null;
+    }
+    clearStoredSelection(true);
+    setCustomPrompt("");
+    setInsertPrompt("");
+    setImagePrompt("");
+    setCodexImageGuide(null);
+    setCodexCopyState("idle");
+    setAiTrace([]);
+    setTraceCollapsed(false);
+    setShowNewArticleModal(false);
+    setShowCustomBox(false);
+    setShowInsertBox(false);
+    setShowImageBox(false);
+    setNotice("已新建空白文章。");
+    if (clearStyleOnNewArticle) {
+      setArticleStylePrompt("");
+      window.localStorage.removeItem(stylePromptStorageKey);
+    }
+    setClearStyleOnNewArticle(false);
+    lastInsertTarget.current = "body";
+    lastTitleCaret.current = 0;
+    lastCaretRange.current = null;
+    lastCaretSnapshot.current = null;
+    window.localStorage.removeItem(caretStorageKey);
+    if (editorRef.current) {
+      editorRef.current.innerHTML = blankArticle.contentHtml ?? "<p><br></p>";
+    }
+    if (titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.setSelectionRange(0, 0);
+    }
+    await persist(blankArticle);
   }
 
   function updateArticle(patch: Partial<ArticleDocument>) {
@@ -1294,6 +1353,10 @@ function App() {
           </div>
         </div>
         <div className="topActions">
+          <button onClick={() => setShowNewArticleModal(true)}>
+            <FilePlus size={17} />
+            <span>新建文章</span>
+          </button>
           <button onClick={load} title="刷新">
             <RefreshCw size={17} />
           </button>
@@ -1727,6 +1790,33 @@ function App() {
                   <pre>{item.body}</pre>
                 </article>
               ))}
+            </div>
+          </section>
+        </div>
+      )}
+      {showNewArticleModal && (
+        <div className="modalOverlay" role="presentation" onMouseDown={() => setShowNewArticleModal(false)}>
+          <section className="newArticleModal" role="dialog" aria-modal="true" aria-labelledby="new-article-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="promptGuideHeader">
+              <div>
+                <strong id="new-article-title">新建文章</strong>
+                <p>会清空当前标题、摘要、封面和正文，并创建一篇空白文章。建议先导出需要保留的内容。</p>
+              </div>
+              <button aria-label="关闭新建文章确认" onClick={() => setShowNewArticleModal(false)}>
+                <X size={16} />
+              </button>
+            </div>
+            <label className="newArticleOption">
+              <input
+                type="checkbox"
+                checked={clearStyleOnNewArticle}
+                onChange={(event) => setClearStyleOnNewArticle(event.target.checked)}
+              />
+              <span>同时清空文章风格要求</span>
+            </label>
+            <div className="modalActions">
+              <button onClick={() => setShowNewArticleModal(false)}>取消</button>
+              <button className="confirmDanger" onClick={() => void createNewArticle()}>确认新建</button>
             </div>
           </section>
         </div>

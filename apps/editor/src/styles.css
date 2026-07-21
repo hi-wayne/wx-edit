@@ -959,6 +959,17 @@ textarea:focus {
   box-shadow: 0 24px 60px rgba(31, 38, 41, 0.22);
 }
 
+.newArticleModal {
+  display: grid;
+  gap: 16px;
+  width: min(460px, 100%);
+  padding: 16px;
+  border: 1px solid #cbd7d1;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(31, 38, 41, 0.22);
+}
+
 .promptGuideHeader {
   display: flex;
   align-items: flex-start;
@@ -992,6 +1003,49 @@ textarea:focus {
   border-radius: 50%;
   background: #ffffff;
   color: #526066;
+}
+
+.newArticleOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #e4ebe7;
+  border-radius: 6px;
+  background: #f7faf9;
+  color: #394348;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.newArticleOption input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.modalActions button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #cbd7d1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #263034;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.modalActions .confirmDanger {
+  border-color: #b42318;
+  background: #b42318;
+  color: #ffffff;
 }
 
 .promptGuideIntro {
