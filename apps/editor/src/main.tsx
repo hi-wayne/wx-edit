@@ -1341,6 +1341,60 @@ function App() {
     );
   }
 
+  function blobToDataUrl(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error ?? new Error("Failed to read image blob."));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function inlineLocalImagesForClipboard(html: string): Promise<string> {
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    const images = Array.from(container.querySelectorAll("img"));
+    await Promise.all(images.map(async (image) => {
+      const src = image.getAttribute("src") ?? "";
+      const isRemote = /^https?:\/\//i.test(src);
+      const isSameOrigin = src.startsWith(window.location.origin);
+      if (!src || src.startsWith("data:") || (isRemote && !isSameOrigin)) return;
+      try {
+        const url = isRemote ? src : new URL(src, window.location.origin).toString();
+        const response = await fetch(url);
+        if (!response.ok) return;
+        image.setAttribute("src", await blobToDataUrl(await response.blob()));
+      } catch {
+        image.setAttribute("src", new URL(src, window.location.origin).toString());
+      }
+    }));
+    return container.innerHTML;
+  }
+
+  function copyRenderedHtmlToClipboard(html: string): boolean {
+    const container = document.createElement("div");
+    container.contentEditable = "true";
+    container.innerHTML = html;
+    container.style.position = "fixed";
+    container.style.left = "-10000px";
+    container.style.top = "0";
+    container.style.width = "677px";
+    container.style.padding = "16px";
+    container.style.background = "#ffffff";
+    document.body.appendChild(container);
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(container);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    try {
+      return document.execCommand("copy");
+    } finally {
+      selection?.removeAllRanges();
+      document.body.removeChild(container);
+    }
+  }
+
   async function copyHtml() {
     if (!state) return;
     saveEditorHtml();
@@ -1348,23 +1402,29 @@ function App() {
     const res = await fetch("/api/article");
     const latest = (await res.json()) as ApiState;
     await fetch("/api/export", { method: "POST" });
+    const clipboardHtml = await inlineLocalImagesForClipboard(latest.html);
     try {
+      if (copyRenderedHtmlToClipboard(clipboardHtml)) {
+        setNotice("已复制为富文本，可粘贴到微信公众号编辑器；同时已导出到 .wx-editor。");
+        setShowCopyDoneModal(true);
+        return;
+      }
       if ("ClipboardItem" in window && navigator.clipboard?.write) {
         await navigator.clipboard.write([
           new ClipboardItem({
-            "text/html": new Blob([latest.html], { type: "text/html" }),
-            "text/plain": new Blob([htmlToText(latest.html)], { type: "text/plain" })
+            "text/html": new Blob([clipboardHtml], { type: "text/html" }),
+            "text/plain": new Blob([htmlToText(clipboardHtml)], { type: "text/plain" })
           })
         ]);
         setNotice("已复制为富文本，可粘贴到微信公众号编辑器；同时已导出到 .wx-editor。");
         setShowCopyDoneModal(true);
         return;
       }
-      await navigator.clipboard.writeText(latest.html);
+      await navigator.clipboard.writeText(clipboardHtml);
       setNotice("当前浏览器不支持富文本复制，已复制 HTML 源码并导出到 .wx-editor。");
       setShowCopyDoneModal(true);
     } catch {
-      await navigator.clipboard.writeText(latest.html);
+      await navigator.clipboard.writeText(clipboardHtml);
       setNotice("富文本复制失败，已复制 HTML 源码并导出到 .wx-editor。");
       setShowCopyDoneModal(true);
     }
@@ -1912,14 +1972,14 @@ function App() {
             <div className="promptGuideHeader">
               <div>
                 <strong id="copy-done-title">已复制到剪贴板</strong>
-                <p>剪贴板里已经有公众号兼容内容。现在可以打开微信公众号后台图文编辑器，在正文编辑区直接粘贴。</p>
+                <p>剪贴板里已经有公众号兼容富文本。现在可以打开微信公众号后台图文编辑器，在正文编辑区直接粘贴，文本格式和图片会尽量保留。</p>
               </div>
               <button aria-label="关闭复制提示" onClick={() => setShowCopyDoneModal(false)}>
                 <X size={16} />
               </button>
             </div>
             <div className="modalHintBox">
-              <p>如果粘贴后看到 HTML 标签，说明当前浏览器只允许复制源码。可以改用导出的 `article.wechat.html`，或换支持富文本剪贴板的浏览器再试。</p>
+              <p>如果粘贴后格式或图片仍丢失，通常是浏览器或公众号后台过滤了剪贴板内容。可以改用导出的 `article.wechat.html`，或先把图片上传到公众号素材库后替换。</p>
             </div>
             <div className="modalActions">
               <button className="confirmPrimary" onClick={() => setShowCopyDoneModal(false)}>知道了</button>
