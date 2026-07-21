@@ -75,6 +75,7 @@ interface FileSystemFileHandle {
 interface FileSystemDirectoryHandle {
   name: string;
   getFileHandle(name: string, options?: { create?: boolean }): Promise<FileSystemFileHandle>;
+  getDirectoryHandle(name: string, options?: { create?: boolean }): Promise<FileSystemDirectoryHandle>;
 }
 
 interface SelectionRect {
@@ -1405,7 +1406,7 @@ function App() {
     const clipboardHtml = await inlineLocalImagesForClipboard(latest.html);
     try {
       if (copyRenderedHtmlToClipboard(clipboardHtml)) {
-        setNotice("已复制为富文本，可粘贴到微信公众号编辑器；同时已导出到 .wx-editor。");
+        setNotice("已复制正文富文本；图片若未随粘贴进入公众号，请用导出的图片上传替换。");
         setShowCopyDoneModal(true);
         return;
       }
@@ -1416,7 +1417,7 @@ function App() {
             "text/plain": new Blob([htmlToText(clipboardHtml)], { type: "text/plain" })
           })
         ]);
-        setNotice("已复制为富文本，可粘贴到微信公众号编辑器；同时已导出到 .wx-editor。");
+        setNotice("已复制正文富文本；图片若未随粘贴进入公众号，请用导出的图片上传替换。");
         setShowCopyDoneModal(true);
         return;
       }
@@ -1437,6 +1438,62 @@ function App() {
     await writable.close();
   }
 
+  function imageFileNameFromSrc(src: string, index: number, contentType = ""): string {
+    const extensionFromType = contentType.includes("png")
+      ? "png"
+      : contentType.includes("webp")
+        ? "webp"
+        : contentType.includes("gif")
+          ? "gif"
+          : "jpg";
+    const rawName = src.startsWith("data:")
+      ? `image-${index + 1}.${extensionFromType}`
+      : (src.split("/").pop() || `image-${index + 1}.${extensionFromType}`).split("?")[0] || `image-${index + 1}.${extensionFromType}`;
+    const safeName = rawName.replace(/[^a-zA-Z0-9._-]/g, "-");
+    return /\.[a-z0-9]{2,5}$/i.test(safeName) ? safeName : `${safeName}.${extensionFromType}`;
+  }
+
+  async function exportHtmlImages(directory: FileSystemDirectoryHandle, html: string): Promise<{ html: string; files: string[] }> {
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    const images = Array.from(container.querySelectorAll("img"));
+    if (images.length === 0) return { html, files: [] };
+    const imageDirectory = await directory.getDirectoryHandle("images", { create: true });
+    const usedNames = new Set<string>();
+    const files: string[] = [];
+
+    for (const [index, image] of images.entries()) {
+      const src = image.getAttribute("src") ?? "";
+      if (!src) continue;
+      const isRemote = /^https?:\/\//i.test(src);
+      const isSameOrigin = src.startsWith(window.location.origin);
+      if (isRemote && !isSameOrigin) continue;
+      try {
+        const response = await fetch(src.startsWith("data:") || isRemote ? src : new URL(src, window.location.origin).toString());
+        if (!response.ok) continue;
+        const blob = await response.blob();
+        const baseName = imageFileNameFromSrc(src, index, blob.type);
+        let fileName = baseName;
+        let suffix = 2;
+        while (usedNames.has(fileName)) {
+          fileName = baseName.replace(/(\.[a-z0-9]{2,5})?$/i, `-${suffix}$1`);
+          suffix += 1;
+        }
+        usedNames.add(fileName);
+        const file = await imageDirectory.getFileHandle(fileName, { create: true });
+        const writable = await file.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        image.setAttribute("src", `images/${fileName}`);
+        files.push(`images/${fileName}`);
+      } catch {
+        // Keep the original src when the browser cannot read the image.
+      }
+    }
+
+    return { html: container.innerHTML, files };
+  }
+
   async function exportToDirectory() {
     if (!state) return;
     saveEditorHtml();
@@ -1452,12 +1509,22 @@ function App() {
     if (window.showDirectoryPicker) {
       try {
         const directory = await window.showDirectoryPicker();
+        const localImageExport = await exportHtmlImages(directory, latest.html);
         await writeFileToDirectory(directory, "article.wechat.html", latest.html);
+        if (localImageExport.files.length > 0) {
+          await writeFileToDirectory(directory, "article.wechat.local-images.html", localImageExport.html);
+        }
         await writeFileToDirectory(directory, "article.md", markdown);
         setExportResult({
           title: "已导出到选定目录",
-          message: `文件已保存到 ${directory.name}。`,
-          files: ["article.wechat.html", "article.md"]
+          message: localImageExport.files.length > 0
+            ? `文件已保存到 ${directory.name}，本地图片也已导出到 images 文件夹。公众号后台粘贴正文后，需要把这些图片上传/替换到对应位置。`
+            : `文件已保存到 ${directory.name}。`,
+          files: [
+            "article.wechat.html",
+            ...(localImageExport.files.length > 0 ? ["article.wechat.local-images.html", ...localImageExport.files] : []),
+            "article.md"
+          ]
         });
         setNotice("已导出到你选择的本地目录。");
         return;
@@ -1972,14 +2039,14 @@ function App() {
             <div className="promptGuideHeader">
               <div>
                 <strong id="copy-done-title">已复制到剪贴板</strong>
-                <p>剪贴板里已经有公众号兼容富文本。现在可以打开微信公众号后台图文编辑器，在正文编辑区直接粘贴，文本格式和图片会尽量保留。</p>
+                <p>剪贴板里已经有公众号兼容富文本。现在可以打开微信公众号后台图文编辑器，在正文编辑区直接粘贴，文本格式会尽量保留。</p>
               </div>
               <button aria-label="关闭复制提示" onClick={() => setShowCopyDoneModal(false)}>
                 <X size={16} />
               </button>
             </div>
             <div className="modalHintBox">
-              <p>如果粘贴后格式或图片仍丢失，通常是浏览器或公众号后台过滤了剪贴板内容。可以改用导出的 `article.wechat.html`，或先把图片上传到公众号素材库后替换。</p>
+              <p>微信公众号后台通常会过滤本地图片、data 图片或非微信素材图片，所以图片不一定能随正文粘贴进去。请点击「导出」选择目录，系统会把图片导出到 images 文件夹，之后在公众号后台上传并替换对应位置。</p>
             </div>
             <div className="modalActions">
               <button className="confirmPrimary" onClick={() => setShowCopyDoneModal(false)}>知道了</button>
