@@ -9,6 +9,7 @@ import {
   Clipboard,
   Download,
   Eraser,
+  HelpCircle,
   Heading3,
   IndentDecrease,
   IndentIncrease,
@@ -108,7 +109,7 @@ const selectionEditRules = [
   "尽量保留原来的 HTML 结构、段落层级和行文节奏，只在必要时微调标签。",
   "不要插入图片、figure、封面、摘要、广告语或额外小标题。",
   "输出要适合微信公众号手机端阅读：自然、清楚、有节奏，但不要营销腔。"
-].join("");
+].join("\n");
 
 function selectionContextRules(useArticleContext: boolean): string {
   return useArticleContext
@@ -117,16 +118,16 @@ function selectionContextRules(useArticleContext: boolean): string {
       "你会同时收到文章标题、摘要、完整正文 HTML、当前选中文本和选区 HTML。",
       "请用全文判断语气、前后衔接、信息重复、指代关系和读者阅读节奏。",
       "全文只能作为参考材料，最终只能修改当前选区或当前选中图片对应区域；不要顺手重写选区外内容。"
-    ].join("")
+    ].join("\n")
     : [
       "上下文模式：只参考当前选区。",
       "完整正文只用于定位选区和保持 HTML 回填稳定，不要把选区外内容作为改写依据。",
       "最终只能修改当前选区或当前选中图片对应区域；不要扩展到全文。"
-    ].join("");
+    ].join("\n");
 }
 
 function withSelectionContext(instruction: string, useArticleContext: boolean): string {
-  return `${selectionContextRules(useArticleContext)}${instruction}`;
+  return `${selectionContextRules(useArticleContext)}\n${instruction}`;
 }
 
 const quickActions = [
@@ -160,6 +161,54 @@ const imageActions = [
   {
     label: "换图建议",
     instruction: "只参考当前选中的图片和文章上下文，给出一个更合适的配图方向，并在当前图片的 figcaption 中写成具体换图建议。不要改正文其他内容。"
+  }
+];
+
+const aiPromptGuideItems = [
+  ...quickActions.map((action) => ({
+    title: action.label,
+    body: action.instruction,
+    note: "选中标题或正文后可用。会叠加上下文模式、文章风格要求、选区 HTML 和全文 HTML。普通编辑强制禁图。"
+  })),
+  ...imageActions.map((action) => ({
+    title: action.label,
+    body: action.instruction,
+    note: "选中图片后可用。只处理当前图片说明或图片附近文字，不新增图片。"
+  })),
+  {
+    title: "自定义",
+    body: [
+      "自定义编辑请求。",
+      "默认只处理当前选区；除非用户明确要求全文、标题或摘要，否则不要改选区外内容。",
+      "优先满足用户的直接要求；如果要求不完整，按微信公众号正文编辑的常规做最小必要修改。",
+      "保留事实、数字、时间、地点和作者基本语气，不编造材料。",
+      "尽量保留现有 HTML 结构，只在必要时调整段落、强调或列表。",
+      "用户没有明确要求图片时，不要插入 figure、img、封面或配图。"
+    ].join("\n"),
+    note: "会把用户输入的自定义要求追加到提示词末尾；如果选中标题，即使提到图片也禁止插图。"
+  },
+  {
+    title: "AI 插入",
+    body: [
+      "AI 插入请求。只生成要插入到光标位置的新内容，不改写现有正文、标题或摘要。",
+      "内容要适合微信公众号手机端阅读，段落短一些，表达自然，不要营销腔。",
+      "如果用户要求字数，请尽量贴近字数；如果用户要求列表、标题、图片或其他结构，请按要求生成对应 HTML。",
+      "不编造具体事实、数据、人物或时间；需要补充时用通用表述。",
+      "用户没有明确要求图片，必须只插入文字内容，不要插入 figure、img、封面或配图。",
+      "插入的新区域必须带 data-ai-result=\"true\"。"
+    ].join("\n"),
+    note: "会读取全文和最后光标位置。只有用户明确要求图片时才允许图片流程。"
+  },
+  {
+    title: "配图",
+    body: [
+      "读取 .wx-editor/image-request.json。",
+      "使用 imagegen skill 生成一张适合微信公众号正文的真实图片。",
+      "保存到 .wx-editor/assets。",
+      "把图片作为 figure 插入 .wx-editor/article.json 对应位置。",
+      "图片不要文字、水印、二维码、Logo 或公众号界面截图。"
+    ].join("\n"),
+    note: "配图走 Codex 生图请求，会参考选区、全文和文章风格要求。"
   }
 ];
 
@@ -292,6 +341,7 @@ function App() {
   const [showCustomBox, setShowCustomBox] = useState(false);
   const [showInsertBox, setShowInsertBox] = useState(false);
   const [showImageBox, setShowImageBox] = useState(false);
+  const [showPromptGuide, setShowPromptGuide] = useState(false);
   const [isAiRunning, setIsAiRunning] = useState(false);
   const [aiTrace, setAiTrace] = useState<AiTraceItem[]>([]);
   const [traceCollapsed, setTraceCollapsed] = useState(false);
@@ -1427,8 +1477,14 @@ function App() {
         <aside className="aiDock">
           <section className="toolPanel aiPanel">
             <div className="panelHead">
-              <Bot size={17} />
-              <span>AI 辅助</span>
+              <div>
+                <Bot size={17} />
+                <span>AI 辅助</span>
+              </div>
+              <button className="promptGuideButton" onClick={() => setShowPromptGuide(true)}>
+                <HelpCircle size={15} />
+                <span>提示词说明</span>
+              </button>
             </div>
             <div className="stylePromptBox">
               <div>
@@ -1636,6 +1692,34 @@ function App() {
 
         </aside>
       </section>
+      {showPromptGuide && (
+        <div className="modalOverlay" role="presentation" onMouseDown={() => setShowPromptGuide(false)}>
+          <section className="promptGuideModal" role="dialog" aria-modal="true" aria-labelledby="prompt-guide-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="promptGuideHeader">
+              <div>
+                <strong id="prompt-guide-title">AI 辅助提示词说明</strong>
+                <p>这些是各功能的核心提示词。实际发送时还会叠加文章标题、全文 HTML、选区 HTML、文章风格要求、上下文模式和服务端安全约束。</p>
+              </div>
+              <button aria-label="关闭提示词说明" onClick={() => setShowPromptGuide(false)}>
+                <X size={16} />
+              </button>
+            </div>
+            <div className="promptGuideIntro">
+              <p><strong>文章风格要求：</strong>会影响语气、节奏、措辞和段落密度，但不能覆盖事实、选区范围、禁图规则和微信兼容规则。</p>
+              <p><strong>参考全文上下文：</strong>开启后会用全文判断衔接、重复和读者阅读节奏，但最终仍只回填选区。</p>
+            </div>
+            <div className="promptGuideList">
+              {aiPromptGuideItems.map((item) => (
+                <article key={item.title}>
+                  <h3>{item.title}</h3>
+                  <p>{item.note}</p>
+                  <pre>{item.body}</pre>
+                </article>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

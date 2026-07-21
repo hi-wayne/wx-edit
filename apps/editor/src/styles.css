@@ -224,8 +224,34 @@ button:disabled {
   font-weight: 800;
 }
 
+.aiPanel .panelHead {
+  justify-content: space-between;
+}
+
+.panelHead > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .panelHead svg {
   color: #0f766e;
+}
+
+.promptGuideButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid #cbd7d1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f5f59;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 label {
@@ -908,6 +934,106 @@ textarea:focus {
 
 .traceBox.collapsed {
   gap: 4px;
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(31, 38, 41, 0.32);
+}
+
+.promptGuideModal {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 12px;
+  width: min(860px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  padding: 16px;
+  border: 1px solid #cbd7d1;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(31, 38, 41, 0.22);
+}
+
+.promptGuideHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.promptGuideHeader strong {
+  display: block;
+  color: #263034;
+  font-size: 16px;
+}
+
+.promptGuideHeader p,
+.promptGuideIntro p,
+.promptGuideList p {
+  margin: 4px 0 0;
+  color: #526066;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.promptGuideHeader button {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid #cbd7d1;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #526066;
+}
+
+.promptGuideIntro {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 6px;
+  background: #f6f8f7;
+}
+
+.promptGuideList {
+  display: grid;
+  gap: 10px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.promptGuideList article {
+  padding: 12px;
+  border: 1px solid #d8e0dc;
+  border-radius: 6px;
+  background: #fbfcfb;
+}
+
+.promptGuideList h3 {
+  margin: 0;
+  color: #0f5f59;
+  font-size: 14px;
+}
+
+.promptGuideList pre {
+  overflow: auto;
+  margin: 10px 0 0;
+  padding: 10px;
+  border: 1px solid #d8e0dc;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #263034;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
 }
 
 .issues {
