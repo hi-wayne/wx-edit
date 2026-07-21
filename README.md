@@ -4,6 +4,20 @@
 
 ## 给完全不懂 GitHub 的用户
 
+你只需要让对方先安装 Codex，然后在 Codex 项目对话里发送下面这一句话。
+
+```text
+请从 https://github.com/hi-wayne/wx-edit 下载公众号AI心流写作台，自动完成安装和启动。不要问我 GitHub、git、Node.js、pnpm 或 skill 是什么；请你自己检查电脑环境，能用 git 就用 git，不能用 git 就下载 ZIP，缺 Node.js 就指导我安装 Node.js 20+，最后告诉我打开哪个本地网址使用。
+```
+
+正常完成后，Codex 会让用户打开：
+
+```text
+http://localhost:3000/
+```
+
+下面是更详细的说明，适合你发给第一次用 Codex 的用户。
+
 1. 先下载安装 Codex：
 
    https://openai.com/zh-Hans-CN/codex/

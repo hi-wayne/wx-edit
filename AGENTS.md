@@ -4,6 +4,14 @@ This repository is a local WeChat Official Account article editor.
 
 When a user asks Codex to install or start this project, do the following without requiring the user to know Git or GitHub:
 
+Assume the user may only know this repository URL and may not understand GitHub, git, Node.js, pnpm, APIs, or skills. Do not ask them to choose an installation method. Make the decisions yourself from the local machine state, run the setup, and report only the final URL or the concrete prerequisite they must install.
+
+If the user says a sentence like this, treat it as a full install-and-start request:
+
+```text
+请从 https://github.com/hi-wayne/wx-edit 下载公众号AI心流写作台，自动完成安装和启动。不要问我 GitHub、git、Node.js、pnpm 或 skill 是什么；请你自己检查电脑环境，能用 git 就用 git，不能用 git 就下载 ZIP，缺 Node.js 就指导我安装 Node.js 20+，最后告诉我打开哪个本地网址使用。
+```
+
 1. Download the repository if it is not already local.
 
    Prefer `git` when available:
