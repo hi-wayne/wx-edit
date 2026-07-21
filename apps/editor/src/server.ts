@@ -139,7 +139,10 @@ function imagePrompt(input: AiApplyRequest): string {
 }
 
 function wantsImage(input: AiApplyRequest): boolean {
-  return /(配图|加图|插图|图片|封面|image|illustration)/i.test(imageRequestText(input));
+  const text = imageRequestText(input);
+  const negativeImageIntent = /(不要|不用|无需|别|禁止|不能|不需要)[^。；,.，]*?(配图|加图|插图|图片|封面|image|illustration)/i;
+  const positiveImageIntent = /(配图|加图|插图|图片|封面|image|illustration)/i;
+  return positiveImageIntent.test(text) && !negativeImageIntent.test(text);
 }
 
 function stripMetadataHtml(value = ""): string {
@@ -195,7 +198,8 @@ function generatedArticleImageSvg(title: string, subtitle: string): string {
 
 async function createGeneratedImageAsset(input: AiApplyRequest): Promise<{ url: string; prompt: string } | null> {
   if (input.operation === "title-insert") return null;
-  if (input.allowImageGeneration === false) return null;
+  if (input.selectionTarget === "title") return null;
+  if (input.allowImageGeneration !== true) return null;
   if (!wantsImage(input)) return null;
   await ensureState();
   const topic = (input.selectedText || input.articleTitle || "公众号配图").replace(/\s+/g, " ").trim().slice(0, 28);

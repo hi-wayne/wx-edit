@@ -742,7 +742,9 @@ function App() {
   }
 
   function isImageInstruction(instruction: string): boolean {
-    return /(配图|加图|插图|图片|封面|image|illustration)/i.test(instruction);
+    const negativeImageIntent = /(不要|不用|无需|别|禁止|不能|不需要)[^。；,.，]*?(配图|加图|插图|图片|封面|image|illustration)/i;
+    const positiveImageIntent = /(配图|加图|插图|图片|封面|image|illustration)/i;
+    return positiveImageIntent.test(instruction) && !negativeImageIntent.test(instruction);
   }
 
   function focusAiResult(next: ApiState, shouldFallbackToFigure: boolean): ArticleDocument {
@@ -996,7 +998,7 @@ function App() {
             setState(next);
             if (editorRef.current) {
               editorRef.current.innerHTML = next.article.contentHtml ?? "";
-              const cleanArticle = focusAiResult(next, isImageInstruction(instruction));
+              const cleanArticle = focusAiResult(next, options.allowImageGeneration === true);
               if (cleanArticle.contentHtml !== next.article.contentHtml) {
                 setState((prev) => (prev ? { ...prev, article: cleanArticle } : prev));
                 void persist(cleanArticle);
@@ -1415,7 +1417,7 @@ function App() {
                   key={action.label}
                   disabled={isAiRunning || !selection}
                   onClick={() => {
-                    void submitAiRequest(withSelectionContext(action.instruction, useArticleContextForSelection));
+                    void submitAiRequest(withSelectionContext(action.instruction, useArticleContextForSelection), { allowImageGeneration: false });
                   }}
                 >
                   {action.label}
