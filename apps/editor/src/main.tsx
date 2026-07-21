@@ -1329,9 +1329,24 @@ function App() {
     await new Promise((resolve) => window.setTimeout(resolve, 520));
     const res = await fetch("/api/article");
     const latest = (await res.json()) as ApiState;
-    await navigator.clipboard.writeText(latest.html);
     await fetch("/api/export", { method: "POST" });
-    setNotice("已复制微信兼容 HTML，并导出到 .wx-editor。");
+    try {
+      if ("ClipboardItem" in window && navigator.clipboard?.write) {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "text/html": new Blob([latest.html], { type: "text/html" }),
+            "text/plain": new Blob([htmlToText(latest.html)], { type: "text/plain" })
+          })
+        ]);
+        setNotice("已复制为富文本，可粘贴到微信公众号编辑器；同时已导出到 .wx-editor。");
+        return;
+      }
+      await navigator.clipboard.writeText(latest.html);
+      setNotice("当前浏览器不支持富文本复制，已复制 HTML 源码并导出到 .wx-editor。");
+    } catch {
+      await navigator.clipboard.writeText(latest.html);
+      setNotice("富文本复制失败，已复制 HTML 源码并导出到 .wx-editor。");
+    }
   }
 
   if (!state) {
