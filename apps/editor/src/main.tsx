@@ -96,12 +96,32 @@ declare global {
 const colorSwatches = ["#2f3437", "#0f766e", "#b42318", "#7a4d00", "#315f8f"];
 
 const selectionEditRules = [
-  "只处理当前选区，不改写选区外正文、标题或摘要。",
+  "你是一个稳健的微信公众号编辑 agent。先在内部判断选区在文章里的作用，再执行任务；不要输出解释、方案或备选稿，只返回可直接回填的结果。",
+  "只处理当前选区，不改写选区外正文、标题或摘要；除非任务明确要求插入当前图片说明或按图补文。",
   "保留原有事实、称谓、数字、时间、地点和核心观点，不自行添加未经用户提供的新事实。",
-  "尽量保留原来的 HTML 结构和行文节奏，只在必要时微调标签。",
+  "尽量保留原来的 HTML 结构、段落层级和行文节奏，只在必要时微调标签。",
   "不要插入图片、figure、封面、摘要、广告语或额外小标题。",
   "输出要适合微信公众号手机端阅读：自然、清楚、有节奏，但不要营销腔。"
 ].join("");
+
+function selectionContextRules(useArticleContext: boolean): string {
+  return useArticleContext
+    ? [
+      "上下文模式：参考全文上下文。",
+      "你会同时收到文章标题、摘要、完整正文 HTML、当前选中文本和选区 HTML。",
+      "请用全文判断语气、前后衔接、信息重复、指代关系和读者阅读节奏。",
+      "全文只能作为参考材料，最终只能修改当前选区或当前选中图片对应区域；不要顺手重写选区外内容。"
+    ].join("")
+    : [
+      "上下文模式：只参考当前选区。",
+      "完整正文只用于定位选区和保持 HTML 回填稳定，不要把选区外内容作为改写依据。",
+      "最终只能修改当前选区或当前选中图片对应区域；不要扩展到全文。"
+    ].join("");
+}
+
+function withSelectionContext(instruction: string, useArticleContext: boolean): string {
+  return `${selectionContextRules(useArticleContext)}${instruction}`;
+}
 
 const quickActions = [
   {
@@ -251,6 +271,7 @@ function App() {
   const [notice, setNotice] = useState("");
   const [codexImageGuide, setCodexImageGuide] = useState<{ prompt: string; path: string } | null>(null);
   const [codexCopyState, setCodexCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  const [useArticleContextForSelection, setUseArticleContextForSelection] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [showCustomBox, setShowCustomBox] = useState(false);
   const [showInsertBox, setShowInsertBox] = useState(false);
@@ -912,7 +933,7 @@ function App() {
     reader.readAsDataURL(file);
   }
 
-  async function submitAiRequest(instruction: string, options: { useInsertAnchor?: boolean; allowImageGeneration?: boolean; operation?: "edit" | "insert" | "title-insert"; titleInsertIndex?: number } = {}) {
+  async function submitAiRequest(instruction: string, options: { useInsertAnchor?: boolean; allowImageGeneration?: boolean; operation?: "edit" | "insert" | "title-insert"; titleInsertIndex?: number; contextMode?: "article-context" | "selection-only" } = {}) {
     if (!state || !instruction.trim()) return;
     if (options.useInsertAnchor && !placeInsertAnchor()) return;
     setIsAiRunning(true);
@@ -939,6 +960,7 @@ function App() {
       operation: options.operation ?? "edit",
       titleInsertIndex: options.titleInsertIndex,
       instruction: instruction.trim(),
+      contextMode: options.contextMode ?? (selection ? (useArticleContextForSelection ? "article-context" : "selection-only") : "article-context"),
       allowImageGeneration: options.allowImageGeneration
     };
     try {
@@ -1020,11 +1042,13 @@ function App() {
     const scopeRule = selection
       ? "默认只处理当前选区；除非用户明确要求全文、标题或摘要，否则不要改选区外内容。"
       : "当前没有选区；请按用户要求处理全文或在合适位置补充内容，但不要无关重写。";
+    const contextRule = selection ? selectionContextRules(useArticleContextForSelection) : "当前没有选区；请读取全文并按用户要求选择合理作用范围。";
     const mediaRule = isImageInstruction(userPrompt)
       ? "用户要求涉及图片时，可以插入 figure；图片说明要具体、克制，图片不要有文字、水印、二维码或公众号界面。"
       : "用户没有明确要求图片时，不要插入 figure、img、封面或配图。";
     return [
       "自定义编辑请求。",
+      contextRule,
       scopeRule,
       "优先满足用户的直接要求；如果要求不完整，按微信公众号正文编辑的常规做最小必要修改。",
       "保留事实、数字、时间、地点和作者基本语气，不编造材料。",
@@ -1365,6 +1389,17 @@ function App() {
                   </div>
                 </div>
                 <div className="selectionScope">{selection.target === "title" ? "作用区域：文章标题" : "作用区域：正文内容"}</div>
+                <label className="contextToggle">
+                  <input
+                    type="checkbox"
+                    checked={useArticleContextForSelection}
+                    onChange={(event) => setUseArticleContextForSelection(event.target.checked)}
+                  />
+                  <span>
+                    <strong>参考全文上下文</strong>
+                    <small>{useArticleContextForSelection ? "结合标题和全文判断语气、衔接和重复，但只回填选区。" : "只按当前选区处理，全文仅用于定位回填。"}</small>
+                  </span>
+                </label>
                 {selection.imageSrc && <img src={selection.imageSrc} alt="当前选中的图片" />}
                 <p>{selection.selectedText || htmlToText(selection.selectedHtml) || "已选中一段富文本内容。"}</p>
               </div>
@@ -1380,7 +1415,7 @@ function App() {
                   key={action.label}
                   disabled={isAiRunning || !selection}
                   onClick={() => {
-                    void submitAiRequest(action.instruction);
+                    void submitAiRequest(withSelectionContext(action.instruction, useArticleContextForSelection));
                   }}
                 >
                   {action.label}

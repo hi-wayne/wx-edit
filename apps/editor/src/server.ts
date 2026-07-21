@@ -29,6 +29,7 @@ interface AiApplyRequest {
   selectedText?: string;
   selectedHtml?: string;
   selectionTarget?: "title" | "body";
+  contextMode?: "article-context" | "selection-only";
   operation?: "edit" | "insert" | "title-insert";
   titleInsertIndex?: number;
   instruction?: string;
@@ -429,6 +430,9 @@ function buildAiPrompt(input: AiApplyRequest, article: ArticleDocument): string 
     "If selectionTarget is title, edit the title only unless the instruction explicitly asks for body changes.",
     "If selectionTarget is body, edit contentHtml only unless the instruction explicitly asks for title or digest changes.",
     "If selectedText/selectedHtml is provided, edit only that selected region or insert immediately near it. Do not rewrite unrelated parts of the article.",
+    "contextMode controls how to use the full article when a selection exists.",
+    "If contextMode is article-context, read the full article to understand tone, continuity, references, repeated ideas, and local fit, but still change only the selected region unless the instruction explicitly asks for a broader edit.",
+    "If contextMode is selection-only, use the full article only to locate the selected region and keep the returned contentHtml stable; do not use surrounding article content as writing material.",
     "If contentHtml contains an element with data-ai-insert-anchor=\"true\", insert the requested new content exactly at that anchor position, remove the anchor element, and do not rewrite unrelated content.",
     "For body edits, mark the final changed or inserted region with data-ai-result=\"true\" on the nearest edited element such as p, h2, blockquote, figure, ul, or ol. Use this marker only once when possible.",
     "If allowImageGeneration is false, do not create, insert, or suggest any image, figure, img, cover, or visual asset. Insert text only.",
@@ -439,6 +443,7 @@ function buildAiPrompt(input: AiApplyRequest, article: ArticleDocument): string 
     "",
     JSON.stringify({
       instruction: input.instruction,
+      contextMode: input.contextMode ?? "article-context",
       selectionTarget: input.selectionTarget ?? "body",
       selectedText: input.selectedText ?? "",
       selectedHtml: input.selectedHtml ?? "",
