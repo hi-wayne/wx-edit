@@ -1048,6 +1048,44 @@ textarea:focus {
   color: #ffffff;
 }
 
+.modalActions .confirmPrimary {
+  border-color: #0f766e;
+  background: #0f766e;
+  color: #ffffff;
+}
+
+.modalHintBox {
+  padding: 10px 12px;
+  border: 1px solid #e4ebe7;
+  border-radius: 6px;
+  background: #f7faf9;
+}
+
+.modalHintBox p {
+  margin: 0;
+  color: #526066;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.exportFileList {
+  display: grid;
+  gap: 8px;
+}
+
+.exportFileList code {
+  display: block;
+  min-width: 0;
+  padding: 8px 10px;
+  overflow-wrap: anywhere;
+  border: 1px solid #e4ebe7;
+  border-radius: 6px;
+  background: #f7faf9;
+  color: #263034;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .promptGuideIntro {
   display: grid;
   gap: 6px;

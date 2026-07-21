@@ -40,6 +40,7 @@ import "./styles.css";
 interface ApiState {
   article: ArticleDocument;
   html: string;
+  markdown?: string;
   paths: Record<string, string>;
 }
 
@@ -60,6 +61,20 @@ interface StreamEvent {
 interface AiTraceItem {
   kind: "request" | "thinking" | "output" | "status" | "error";
   message: string;
+}
+
+interface FileSystemWritableFileStream {
+  write(data: BlobPart): Promise<void>;
+  close(): Promise<void>;
+}
+
+interface FileSystemFileHandle {
+  createWritable(): Promise<FileSystemWritableFileStream>;
+}
+
+interface FileSystemDirectoryHandle {
+  name: string;
+  getFileHandle(name: string, options?: { create?: boolean }): Promise<FileSystemFileHandle>;
 }
 
 interface SelectionRect {
@@ -94,6 +109,7 @@ declare global {
   interface Window {
     Highlight?: typeof Highlight;
     caretRangeFromPoint?: (x: number, y: number) => Range | null;
+    showDirectoryPicker?: () => Promise<FileSystemDirectoryHandle>;
   }
 
   interface CSS {
@@ -361,6 +377,8 @@ function App() {
   const [showImageBox, setShowImageBox] = useState(false);
   const [showPromptGuide, setShowPromptGuide] = useState(false);
   const [showNewArticleModal, setShowNewArticleModal] = useState(false);
+  const [showCopyDoneModal, setShowCopyDoneModal] = useState(false);
+  const [exportResult, setExportResult] = useState<{ title: string; message: string; files?: string[] } | null>(null);
   const [clearStyleOnNewArticle, setClearStyleOnNewArticle] = useState(false);
   const [isAiRunning, setIsAiRunning] = useState(false);
   const [aiTrace, setAiTrace] = useState<AiTraceItem[]>([]);
@@ -1339,14 +1357,66 @@ function App() {
           })
         ]);
         setNotice("已复制为富文本，可粘贴到微信公众号编辑器；同时已导出到 .wx-editor。");
+        setShowCopyDoneModal(true);
         return;
       }
       await navigator.clipboard.writeText(latest.html);
       setNotice("当前浏览器不支持富文本复制，已复制 HTML 源码并导出到 .wx-editor。");
+      setShowCopyDoneModal(true);
     } catch {
       await navigator.clipboard.writeText(latest.html);
       setNotice("富文本复制失败，已复制 HTML 源码并导出到 .wx-editor。");
+      setShowCopyDoneModal(true);
     }
+  }
+
+  async function writeFileToDirectory(directory: FileSystemDirectoryHandle, name: string, content: string) {
+    const file = await directory.getFileHandle(name, { create: true });
+    const writable = await file.createWritable();
+    await writable.write(content);
+    await writable.close();
+  }
+
+  async function exportToDirectory() {
+    if (!state) return;
+    saveEditorHtml();
+    await new Promise((resolve) => window.setTimeout(resolve, 520));
+    const res = await fetch("/api/article");
+    const latest = (await res.json()) as ApiState;
+    const markdown = latest.markdown ?? [
+      `# ${latest.article.title || "未命名文章"}`,
+      "",
+      htmlToText(latest.article.contentHtml ?? "")
+    ].join("\n").trim() + "\n";
+
+    if (window.showDirectoryPicker) {
+      try {
+        const directory = await window.showDirectoryPicker();
+        await writeFileToDirectory(directory, "article.wechat.html", latest.html);
+        await writeFileToDirectory(directory, "article.md", markdown);
+        setExportResult({
+          title: "已导出到选定目录",
+          message: `文件已保存到 ${directory.name}。`,
+          files: ["article.wechat.html", "article.md"]
+        });
+        setNotice("已导出到你选择的本地目录。");
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          setNotice("已取消选择导出目录。");
+          return;
+        }
+      }
+    }
+
+    const fallback = await fetch("/api/export", { method: "POST" });
+    const result = await fallback.json() as { exportHtmlPath?: string; exportMdPath?: string };
+    setExportResult({
+      title: "已导出到默认目录",
+      message: "当前浏览器不支持选择本地目录，已导出到项目的 .wx-editor 目录。",
+      files: [result.exportHtmlPath ?? ".wx-editor/article.wechat.html", result.exportMdPath ?? ".wx-editor/article.md"]
+    });
+    setNotice("已导出 HTML 和 Markdown 到 .wx-editor。");
   }
 
   if (!state) {
@@ -1379,7 +1449,7 @@ function App() {
             <Clipboard size={17} />
             <span>复制到公众号</span>
           </button>
-          <button onClick={() => fetch("/api/export", { method: "POST" }).then(() => setNotice("已导出 HTML 和 Markdown。"))}>
+          <button onClick={() => void exportToDirectory()}>
             <Download size={17} />
             <span>导出</span>
           </button>
@@ -1832,6 +1902,52 @@ function App() {
             <div className="modalActions">
               <button onClick={() => setShowNewArticleModal(false)}>取消</button>
               <button className="confirmDanger" onClick={() => void createNewArticle()}>确认新建</button>
+            </div>
+          </section>
+        </div>
+      )}
+      {showCopyDoneModal && (
+        <div className="modalOverlay" role="presentation" onMouseDown={() => setShowCopyDoneModal(false)}>
+          <section className="newArticleModal" role="dialog" aria-modal="true" aria-labelledby="copy-done-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="promptGuideHeader">
+              <div>
+                <strong id="copy-done-title">已复制到剪贴板</strong>
+                <p>剪贴板里已经有公众号兼容内容。现在可以打开微信公众号后台图文编辑器，在正文编辑区直接粘贴。</p>
+              </div>
+              <button aria-label="关闭复制提示" onClick={() => setShowCopyDoneModal(false)}>
+                <X size={16} />
+              </button>
+            </div>
+            <div className="modalHintBox">
+              <p>如果粘贴后看到 HTML 标签，说明当前浏览器只允许复制源码。可以改用导出的 `article.wechat.html`，或换支持富文本剪贴板的浏览器再试。</p>
+            </div>
+            <div className="modalActions">
+              <button className="confirmPrimary" onClick={() => setShowCopyDoneModal(false)}>知道了</button>
+            </div>
+          </section>
+        </div>
+      )}
+      {exportResult && (
+        <div className="modalOverlay" role="presentation" onMouseDown={() => setExportResult(null)}>
+          <section className="newArticleModal" role="dialog" aria-modal="true" aria-labelledby="export-result-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="promptGuideHeader">
+              <div>
+                <strong id="export-result-title">{exportResult.title}</strong>
+                <p>{exportResult.message}</p>
+              </div>
+              <button aria-label="关闭导出结果" onClick={() => setExportResult(null)}>
+                <X size={16} />
+              </button>
+            </div>
+            {exportResult.files && (
+              <div className="exportFileList">
+                {exportResult.files.map((file) => (
+                  <code key={file}>{file}</code>
+                ))}
+              </div>
+            )}
+            <div className="modalActions">
+              <button className="confirmPrimary" onClick={() => setExportResult(null)}>完成</button>
             </div>
           </section>
         </div>

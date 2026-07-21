@@ -870,6 +870,7 @@ app.get("/api/article", async (_req, res) => {
   res.json({
     article,
     html: renderWechatHtml(article),
+    markdown: renderPlainMarkdown(article),
     issues: checkWechatCompatibility(article),
     paths: { articlePath, requestPath, imageRequestPath, exportHtmlPath, exportMdPath }
   });
