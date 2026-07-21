@@ -81,6 +81,7 @@ interface StoredCaretState {
 }
 
 const caretStorageKey = "wx-codex-editor:last-caret";
+const stylePromptStorageKey = "wx-codex-editor:article-style-prompt";
 
 declare global {
   interface Window {
@@ -268,6 +269,7 @@ function App() {
   const [customPrompt, setCustomPrompt] = useState("");
   const [insertPrompt, setInsertPrompt] = useState("");
   const [imagePrompt, setImagePrompt] = useState("");
+  const [articleStylePrompt, setArticleStylePrompt] = useState("");
   const [notice, setNotice] = useState("");
   const [codexImageGuide, setCodexImageGuide] = useState<{ prompt: string; path: string } | null>(null);
   const [codexCopyState, setCodexCopyState] = useState<"idle" | "copied" | "failed">("idle");
@@ -348,6 +350,14 @@ function App() {
     }, 3000);
     return () => window.clearInterval(timer);
   }, [isEditing]);
+
+  useEffect(() => {
+    setArticleStylePrompt(window.localStorage.getItem(stylePromptStorageKey) ?? "");
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(stylePromptStorageKey, articleStylePrompt);
+  }, [articleStylePrompt]);
 
   useEffect(() => {
     if (state && editorRef.current && !editorRef.current.innerHTML.trim()) {
@@ -949,6 +959,7 @@ function App() {
         : options.operation === "title-insert"
           ? "已读取标题最后停留的光标位置"
         : selection ? `已读取当前选区：${selection.label}` : "未检测到选区，将按全文处理",
+      articleStylePrompt.trim() ? "已读取文章风格要求。" : "未设置额外文章风格要求。",
       "正在调用本机 Codex..."
     ]);
     const contentHtml = editorRef.current?.innerHTML ?? state.article.contentHtml ?? "";
@@ -966,6 +977,7 @@ function App() {
       titleInsertIndex: options.titleInsertIndex,
       instruction: instruction.trim(),
       contextMode: options.contextMode ?? (selection ? (useArticleContextForSelection ? "article-context" : "selection-only") : "article-context"),
+      articleStylePrompt: articleStylePrompt.trim(),
       allowImageGeneration: effectiveAllowImageGeneration
     };
     try {
@@ -1077,6 +1089,7 @@ function App() {
         selectedText: selection?.selectedText ?? "",
         selectedHtml: selection?.selectedHtml ?? "",
         selectionTarget: selection?.target ?? "body",
+        articleStylePrompt: articleStylePrompt.trim(),
         contentHtml
       })
     });
@@ -1373,6 +1386,18 @@ function App() {
             <div className="panelHead">
               <Bot size={17} />
               <span>AI 辅助</span>
+            </div>
+            <div className="stylePromptBox">
+              <div>
+                <strong>文章风格要求</strong>
+                <span>AI 辅助各功能都会参考</span>
+              </div>
+              <textarea
+                rows={3}
+                value={articleStylePrompt}
+                placeholder="可选。例如：像个人游记，真诚克制，少用夸张形容；段落短，适合手机阅读；保留一点松弛感，不要营销腔。"
+                onChange={(event) => setArticleStylePrompt(event.target.value)}
+              />
             </div>
             {selection ? (
               <div className={`focusBox selectedFocus ${selection.kind}`}>

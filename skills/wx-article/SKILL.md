@@ -17,9 +17,10 @@ Use this skill to turn a user's draft, topic, outline, or browser selection requ
 6. If the request includes `selectedText` and `selectedHtml` with `selectionTarget: "body"`, treat it as a precise selection inside the freeform article body.
 7. If the request includes `contextMode: "article-context"`, use the whole article to understand tone, continuity, references, repeated ideas, and local fit, but still change only the selected region unless the instruction explicitly asks for broader changes.
 8. If the request includes `contextMode: "selection-only"`, use the whole article only to locate and safely replace the selection; do not use surrounding content as writing material.
-9. Modify `contentHtml` first for body edits. Use legacy `blocks` only when the article has no `contentHtml`.
-10. Run the editor export or renderer check after meaningful changes.
-11. Tell the user to refresh the local preview or rely on the editor's automatic refresh.
+9. If the request includes `articleStylePrompt`, treat it as persistent article style guidance for tone, rhythm, wording, paragraph density, and restraint. It should influence the edit, but never override facts, scope, media permissions, or WeChat compatibility.
+10. Modify `contentHtml` first for body edits. Use legacy `blocks` only when the article has no `contentHtml`.
+11. Run the editor export or renderer check after meaningful changes.
+12. Tell the user to refresh the local preview or rely on the editor's automatic refresh.
 
 ## Article Model
 
@@ -57,6 +58,7 @@ Legacy block types:
 - Preserve the user's voice unless the user explicitly asks for a stronger rewrite.
 - When the user asks for style changes, use ordinary article structures such as headings, quotes, bold text, lists, separators, or figures. Avoid turning writing into rigid slots.
 - For selected-region AI actions, respect `contextMode`. `article-context` means the full article is reference material for a better local edit, not permission to rewrite outside the selection. `selection-only` means surrounding content should not influence the rewrite except for safe replacement.
+- Respect `articleStylePrompt` whenever present. Use it as article-wide style guidance, not as permission to change unrelated content.
 - For normal AI editing actions such as polish, shorten, expand, typo check, title edits, and caption rewriting, do not insert new images, figures, covers, or placeholders. Image insertion is allowed only for explicit image-generation requests or custom/insert requests where `allowImageGeneration` is true.
 - When the user asks for a picture, either insert a `<figure>` with a local path/URL provided by the user or create a clear image generation/search brief.
 - When the local editor sends a Codex image request, use the user's image prompt plus selected text/context. If the active Codex session has the built-in `imagegen` skill, create the image asset and insert a `<figure>` near the selection. If `imagegen` is not available, tell the user to update/restart Codex. Do not suggest the removed automatic image-search flow.
@@ -128,8 +130,9 @@ When `.wx-editor/request.json` exists:
 4. If `selectionTarget` is `body` and `selectedText` or `selectedHtml` is present, apply the instruction only to that exact selected passage or image area. Preserve unrelated article content.
 5. If `contextMode` is `article-context`, use the article for tone, facts already present, rhythm, and transition quality, while keeping the edit bounded to the selected region.
 6. If `contextMode` is `selection-only`, avoid borrowing wording, facts, or structure from outside the selected region.
-7. If the instruction asks for an image, insert a nearby `<figure>` with an image placeholder, caption, and clear image direction when no asset is available yet.
-8. If the instruction asks for style changes, use normal HTML structures such as `<h2>`, `<blockquote>`, `<strong>`, `<ul>`, `<hr>`, or `<figure>` instead of inventing rigid blocks.
-9. Update `.wx-editor/article.json`.
-10. Set the request status to `done` or explain if blocked.
-11. Run `pnpm --filter @wx-codex/editor check` when code changed; for article-only changes, reload/export through the editor API if the server is running.
+7. If `articleStylePrompt` is present, apply it consistently to wording and tone while preserving the requested operation and selected scope.
+8. If the instruction asks for an image, insert a nearby `<figure>` with an image placeholder, caption, and clear image direction when no asset is available yet.
+9. If the instruction asks for style changes, use normal HTML structures such as `<h2>`, `<blockquote>`, `<strong>`, `<ul>`, `<hr>`, or `<figure>` instead of inventing rigid blocks.
+10. Update `.wx-editor/article.json`.
+11. Set the request status to `done` or explain if blocked.
+12. Run `pnpm --filter @wx-codex/editor check` when code changed; for article-only changes, reload/export through the editor API if the server is running.

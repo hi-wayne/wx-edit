@@ -30,6 +30,7 @@ interface AiApplyRequest {
   selectedHtml?: string;
   selectionTarget?: "title" | "body";
   contextMode?: "article-context" | "selection-only";
+  articleStylePrompt?: string;
   operation?: "edit" | "insert" | "title-insert";
   titleInsertIndex?: number;
   instruction?: string;
@@ -402,6 +403,8 @@ function buildAiInsertPrompt(input: AiApplyRequest, article: ArticleDocument): s
   return [
     "You are an expert WeChat Official Account editor.",
     "Generate only the HTML fragment requested by the user for insertion into contentHtml.",
+    "articleStylePrompt is optional style guidance. Apply it to tone, rhythm, diction, and paragraph density when it is present.",
+    "Style guidance never overrides factual accuracy, user scope, media permissions, or WeChat-compatible HTML constraints.",
     "Do not return the full article. Do not rewrite existing article content.",
     "For normal inserted prose, always use <p> paragraphs. Do not use <section> or bare text for prose.",
     "Use WeChat-friendly HTML such as p, h2, h3, blockquote, ul, ol, strong, em, and figure.",
@@ -414,6 +417,7 @@ function buildAiInsertPrompt(input: AiApplyRequest, article: ArticleDocument): s
       instruction: input.instruction,
       selectedText: input.selectedText ?? "",
       selectedHtml: input.selectedHtml ?? "",
+      articleStylePrompt: input.articleStylePrompt ?? "",
       generatedImageUrl: input.generatedImageUrl ?? "",
       generatedImagePrompt: input.generatedImagePrompt ?? "",
       allowImageGeneration: input.allowImageGeneration ?? null,
@@ -427,12 +431,14 @@ function buildAiTitleInsertPrompt(input: AiApplyRequest, article: ArticleDocumen
   return [
     "You are an expert WeChat Official Account title editor.",
     "Generate only the plain text requested by the user for insertion into the article title.",
+    "articleStylePrompt is optional style guidance. Apply it when choosing tone and wording, but keep the title concise and factual.",
     "Do not return HTML, Markdown, quotes, numbering, explanation, image text, cover text, or a full article.",
     "The result must be short enough to fit naturally inside a WeChat Official Account title.",
     "Return only compact JSON with keys: insertText, note.",
     "",
     JSON.stringify({
       instruction: input.instruction,
+      articleStylePrompt: input.articleStylePrompt ?? "",
       currentTitle: article.title,
       insertIndex: input.titleInsertIndex ?? article.title.length
     })
@@ -453,6 +459,8 @@ function buildAiPrompt(input: AiApplyRequest, article: ArticleDocument): string 
   return [
     "You are an expert WeChat Official Account editor.",
     "Edit the article according to the user's instruction.",
+    "articleStylePrompt is optional style guidance. Apply it to tone, rhythm, diction, paragraph density, and restraint when it is present.",
+    "Style guidance never overrides factual accuracy, selected-region scope, media permissions, title/body boundaries, or WeChat-compatible HTML constraints.",
     "The main body is freeform HTML in contentHtml.",
     "Preserve meaning and surrounding HTML unless the user asks for broader changes.",
     "selectionTarget can be title or body.",
@@ -473,6 +481,7 @@ function buildAiPrompt(input: AiApplyRequest, article: ArticleDocument): string 
     "",
     JSON.stringify({
       instruction: input.instruction,
+      articleStylePrompt: input.articleStylePrompt ?? "",
       contextMode: input.contextMode ?? "article-context",
       selectionTarget: input.selectionTarget ?? "body",
       selectedText: input.selectedText ?? "",
@@ -885,10 +894,14 @@ app.post("/api/imagegen-request", async (req, res) => {
     selectedText: typeof req.body.selectedText === "string" ? req.body.selectedText : "",
     selectedHtml: typeof req.body.selectedHtml === "string" ? req.body.selectedHtml : "",
     selectionTarget: req.body.selectionTarget === "title" ? "title" : "body",
+    articleStylePrompt: typeof req.body.articleStylePrompt === "string" ? req.body.articleStylePrompt : "",
     articleTitle: article.title,
     contentHtml: article.contentHtml ?? "",
     instruction: [
       "Use the Codex imagegen skill to generate a real bitmap image for this WeChat Official Account article.",
+      typeof req.body.articleStylePrompt === "string" && req.body.articleStylePrompt.trim()
+        ? `Respect this article style guidance when choosing image mood and caption tone: ${req.body.articleStylePrompt.trim()}`
+        : "",
       "Save the final image into .wx-editor/assets with a descriptive filename.",
       "Insert it into .wx-editor/article.json contentHtml as a <figure><img src=\"/assets/...\"><figcaption>...</figcaption></figure> near the selected content or latest useful article position.",
       "Then export/update the article state if the local editor service is running.",

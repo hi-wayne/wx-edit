@@ -566,6 +566,38 @@ textarea:focus {
   line-height: 1.55;
 }
 
+.stylePromptBox {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid #d8e0dc;
+  border-radius: 6px;
+  background: #fbfcfb;
+}
+
+.stylePromptBox > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.stylePromptBox strong {
+  color: #263034;
+  font-size: 13px;
+}
+
+.stylePromptBox span {
+  color: #718086;
+  font-size: 12px;
+}
+
+.stylePromptBox textarea {
+  min-height: 72px;
+  font-size: 13px;
+}
+
 .focusBox strong {
   display: block;
   margin-bottom: 8px;
