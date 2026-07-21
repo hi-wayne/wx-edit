@@ -867,6 +867,45 @@ textarea:focus {
   margin: 0;
 }
 
+.traceItem {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.traceItem span {
+  display: inline-grid;
+  place-items: center;
+  min-height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #edf2ef;
+  color: #526066;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.traceItem.request span {
+  background: #e7f5f2;
+  color: #0f5f59;
+}
+
+.traceItem.thinking span {
+  background: #fff4d8;
+  color: #7a4d00;
+}
+
+.traceItem.output span {
+  background: #eef4ff;
+  color: #315f8f;
+}
+
+.traceItem.error span {
+  background: #fff0ee;
+  color: #b42318;
+}
+
 .traceBox.collapsed {
   gap: 4px;
 }

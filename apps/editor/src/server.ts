@@ -39,7 +39,8 @@ interface AiApplyRequest {
   allowImageGeneration?: boolean;
 }
 
-type StreamWriter = (message: string) => void;
+type TraceKind = "request" | "thinking" | "output" | "status" | "error";
+type StreamWriter = (message: string, kind?: TraceKind) => void;
 
 function effectiveAllowImageGeneration(input: AiApplyRequest): boolean {
   return input.allowImageGeneration === true
@@ -544,7 +545,7 @@ function cleanCliText(value: string): string {
   return value.replace(/\u001b\[[0-9;]*m/g, "").replace(/\s+/g, " ").trim();
 }
 
-function summarizeCodexEvent(value: unknown): string | null {
+function summarizeCodexEvent(value: unknown): { message: string; kind: TraceKind } | null {
   if (!value || typeof value !== "object") return null;
   const event = value as Record<string, unknown>;
   const type = typeof event.type === "string" ? event.type : "";
@@ -553,19 +554,19 @@ function summarizeCodexEvent(value: unknown): string | null {
   const item = event.item && typeof event.item === "object" ? event.item as Record<string, unknown> : null;
   const itemType = item && typeof item.type === "string" ? item.type : "";
 
-  if (message) return cleanCliText(message).slice(0, 220);
-  if (delta) return `正在生成：${cleanCliText(delta).slice(0, 160)}`;
-  if (type === "thread.started") return "本机 Codex 会话已建立。";
-  if (type === "turn.started") return "Codex 正在处理当前请求。";
-  if (type === "turn.completed") return "Codex 已完成生成。";
-  if (type === "exec_command_begin") return "Codex 正在读取本地文章状态。";
-  if (type === "exec_command_output") return "Codex 返回了一段处理输出。";
-  if (type === "agent_reasoning" || type === "agent_reasoning_delta") return "Codex 正在分析选区和改写要求...";
-  if (type === "agent_message" || type === "agent_message_delta") return "Codex 正在生成可回填内容...";
-  if (type === "task_started") return "本机 Codex 已开始处理。";
-  if (type === "task_complete") return "Codex 处理完成，正在回填文章。";
-  if (itemType) return `Codex 状态：${itemType}`;
-  if (type) return `Codex 状态：${type}`;
+  if (message) return { kind: type.includes("reasoning") ? "thinking" : "output", message: cleanCliText(message).slice(0, 220) };
+  if (delta) return { kind: type.includes("reasoning") ? "thinking" : "output", message: cleanCliText(delta).slice(0, 180) };
+  if (type === "thread.started") return { kind: "status", message: "本机 Codex 会话已建立。" };
+  if (type === "turn.started") return { kind: "thinking", message: "Codex 正在理解文章、选区和操作要求。" };
+  if (type === "turn.completed") return { kind: "status", message: "Codex 已完成生成。" };
+  if (type === "exec_command_begin") return { kind: "thinking", message: "Codex 正在读取本地文章状态。" };
+  if (type === "exec_command_output") return { kind: "output", message: "Codex 返回了一段处理输出。" };
+  if (type === "agent_reasoning" || type === "agent_reasoning_delta") return { kind: "thinking", message: "分析选区边界、上下文、风格要求和回填范围。" };
+  if (type === "agent_message" || type === "agent_message_delta") return { kind: "output", message: "正在生成可回填内容。" };
+  if (type === "task_started") return { kind: "status", message: "本机 Codex 已开始处理。" };
+  if (type === "task_complete") return { kind: "status", message: "Codex 处理完成，正在回填文章。" };
+  if (itemType) return { kind: "status", message: `Codex 状态：${itemType}` };
+  if (type) return { kind: "status", message: `Codex 状态：${type}` };
   return null;
 }
 
@@ -614,18 +615,18 @@ async function runCodexEditStream(prompt: string, onTrace: StreamWriter): Promis
       for (const line of lines) {
         if (!line.trim()) continue;
         try {
-          const message = summarizeCodexEvent(JSON.parse(line));
-          if (message) onTrace(message);
+          const trace = summarizeCodexEvent(JSON.parse(line));
+          if (trace) onTrace(trace.message, trace.kind);
         } catch {
           const message = cleanCliText(line);
-          if (message) onTrace(message.slice(0, 220));
+          if (message) onTrace(message.slice(0, 220), "output");
         }
       }
     });
     child.stderr.on("data", (chunk) => {
       const text = cleanCliText(chunk.toString());
       stderr += `${text}\n`;
-      if (shouldShowCliDiagnostic(text)) onTrace(text.slice(0, 220));
+      if (shouldShowCliDiagnostic(text)) onTrace(text.slice(0, 220), "status");
     });
     child.on("error", (error) => {
       clearTimeout(timer);
@@ -765,15 +766,15 @@ async function applyAiEditStream(input: AiApplyRequest, onTrace: StreamWriter): 
 
   const generatedImage = await createGeneratedImageAsset(safeInput);
   if (generatedImage) {
-    onTrace(`已生成本地配图素材：${generatedImage.url}`);
+    onTrace(`已生成本地配图素材：${generatedImage.url}`, "output");
   }
   if (safeInput.operation === "title-insert") {
     const prompt = buildAiTitleInsertPrompt(safeInput, article);
-    onTrace("已锁定标题光标位置，正在生成标题插入文本。");
+    onTrace("已锁定标题光标位置，正在生成标题插入文本。", "thinking");
     const raw = process.env.WX_AI_PROVIDER === "openai-api"
       ? await runOpenAiEdit(prompt)
       : await runCodexEditStream(prompt, onTrace);
-    onTrace("已收到 Codex 标题文本，正在放回标题光标位置。");
+    onTrace("已收到 Codex 标题文本，正在放回标题光标位置。", "output");
     const parsed = parseJsonObject(raw) as { insertText?: string; note?: string };
     const insertText = stripHtml(typeof parsed.insertText === "string" ? parsed.insertText : "");
     const nextArticle: ArticleDocument = {
@@ -790,11 +791,11 @@ async function applyAiEditStream(input: AiApplyRequest, onTrace: StreamWriter): 
       generatedImageUrl: generatedImage?.url,
       generatedImagePrompt: generatedImage?.prompt
     }, article);
-    onTrace("已锁定编辑器最后停留位置，正在生成插入片段。");
+    onTrace("已锁定编辑器最后停留位置，正在生成插入片段。", "thinking");
     const raw = process.env.WX_AI_PROVIDER === "openai-api"
       ? await runOpenAiEdit(prompt)
       : await runCodexEditStream(prompt, onTrace);
-    onTrace("已收到 Codex 插入片段，正在放回光标位置。");
+    onTrace("已收到 Codex 插入片段，正在放回光标位置。", "output");
     const parsed = parseJsonObject(raw) as { insertHtml?: string; note?: string };
     const fragment = generatedImage && !String(parsed.insertHtml ?? "").includes(generatedImage.url)
       ? imageFigure(generatedImage)
@@ -813,11 +814,11 @@ async function applyAiEditStream(input: AiApplyRequest, onTrace: StreamWriter): 
     generatedImageUrl: generatedImage?.url,
     generatedImagePrompt: generatedImage?.prompt
   }, article);
-  onTrace("已整理文章、选区和用户要求。");
+  onTrace("已整理发送给 Codex 的文章、选区、风格要求和操作约束。", "request");
   const raw = process.env.WX_AI_PROVIDER === "openai-api"
     ? await runOpenAiEdit(prompt)
     : await runCodexEditStream(prompt, onTrace);
-  onTrace("已收到 Codex 最终输出，正在解析并回填。");
+  onTrace("已收到 Codex 最终输出，正在解析并回填。", "output");
   const parsed = parseJsonObject(raw) as Partial<ArticleDocument> & { note?: string };
   const nextArticle: ArticleDocument = {
     ...article,
@@ -940,8 +941,8 @@ app.post("/api/ai/apply-stream", async (req, res) => {
   res.flushHeaders?.();
 
   try {
-    const article = await applyAiEditStream(req.body as AiApplyRequest, (message) => {
-      writeSse(res, "trace", { message });
+    const article = await applyAiEditStream(req.body as AiApplyRequest, (message, kind = "status") => {
+      writeSse(res, "trace", { message, kind });
     });
     writeSse(res, "done", {
       ok: true,

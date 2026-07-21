@@ -55,6 +55,11 @@ interface StreamEvent {
   data: unknown;
 }
 
+interface AiTraceItem {
+  kind: "request" | "thinking" | "output" | "status" | "error";
+  message: string;
+}
+
 interface SelectionRect {
   top: number;
   left: number;
@@ -204,13 +209,22 @@ function parseSseBlock(block: string): StreamEvent | null {
   }
 }
 
-function appendTraceItem(setter: React.Dispatch<React.SetStateAction<string[]>>, message: string) {
+function appendTraceItem(setter: React.Dispatch<React.SetStateAction<AiTraceItem[]>>, message: string, kind: AiTraceItem["kind"] = "status") {
   const clean = message.replace(/\s+/g, " ").trim();
   if (!clean) return;
   setter((items) => {
-    if (items.at(-1) === clean) return items;
-    return [...items, clean].slice(-12);
+    const last = items.at(-1);
+    if (last?.message === clean && last.kind === kind) return items;
+    return [...items, { kind, message: clean }].slice(-24);
   });
+}
+
+function traceLabel(kind: AiTraceItem["kind"]): string {
+  if (kind === "request") return "发送";
+  if (kind === "thinking") return "思考";
+  if (kind === "output") return "输出";
+  if (kind === "error") return "错误";
+  return "状态";
 }
 
 function describeSelection(selectedText: string, selectedHtml: string, target: EditorSelection["target"] = "body"): EditorSelection {
@@ -279,11 +293,12 @@ function App() {
   const [showInsertBox, setShowInsertBox] = useState(false);
   const [showImageBox, setShowImageBox] = useState(false);
   const [isAiRunning, setIsAiRunning] = useState(false);
-  const [aiTrace, setAiTrace] = useState<string[]>([]);
+  const [aiTrace, setAiTrace] = useState<AiTraceItem[]>([]);
   const [traceCollapsed, setTraceCollapsed] = useState(false);
   const [selectionRects, setSelectionRects] = useState<SelectionRect[]>([]);
   const paperRef = useRef<HTMLElement | null>(null);
   const editorRef = useRef<HTMLDivElement | null>(null);
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const pendingImageReplace = useRef(false);
   const saveTimer = useRef<number | null>(null);
@@ -757,18 +772,37 @@ function App() {
     return positiveImageIntent.test(instruction) && !negativeImageIntent.test(instruction);
   }
 
-  function focusAiResult(next: ApiState, shouldFallbackToFigure: boolean): ArticleDocument {
+  function focusTitleResult(title: string) {
+    const input = titleInputRef.current;
+    if (!input) return;
+    window.setTimeout(() => {
+      input.focus();
+      input.setSelectionRange(0, title.length);
+      setSelection(describeSelection(title, escapeHtml(title), "title"));
+      setSelectionRects([]);
+    }, 0);
+  }
+
+  function focusAiResult(next: ApiState, shouldFallbackToFigure: boolean, target: EditorSelection["target"]): ArticleDocument {
+    if (target === "title") {
+      focusTitleResult(next.article.title ?? "");
+      return next.article;
+    }
     const editor = editorRef.current;
     if (!editor) return next.article;
-    const marked = editor.querySelector("[data-ai-result]") as HTMLElement | null;
+    const markedElements = Array.from(editor.querySelectorAll("[data-ai-result]")) as HTMLElement[];
     const fallbackFigure = shouldFallbackToFigure ? editor.querySelector("figure:last-of-type") as HTMLElement | null : null;
-    const resultElement = marked ?? fallbackFigure;
-    if (!resultElement) return next.article;
+    const firstResult = markedElements[0] ?? fallbackFigure;
+    const lastResult = markedElements.at(-1) ?? fallbackFigure;
+    if (!firstResult || !lastResult) return next.article;
 
     const range = document.createRange();
-    range.selectNode(resultElement);
+    range.setStartBefore(firstResult);
+    range.setEndAfter(lastResult);
     paintPersistentSelection(range);
-    setSelection(describeSelection(resultElement.textContent ?? "", resultElement.outerHTML));
+    const holder = document.createElement("div");
+    holder.appendChild(range.cloneContents());
+    setSelection(describeSelection(range.toString(), holder.innerHTML));
 
     editor.querySelectorAll("[data-ai-result]").forEach((element) => {
       element.removeAttribute("data-ai-result");
@@ -952,15 +986,19 @@ function App() {
     setNotice("");
     setTraceCollapsed(false);
     if (traceCollapseTimer.current) window.clearTimeout(traceCollapseTimer.current);
-    setAiTrace([
-      `本次操作：${instruction.replace(/^只处理当前选区：/, "").slice(0, 80)}`,
+    const requestSummary = [
+      `操作：${instruction.replace(/^只处理当前选区：/, "").slice(0, 90)}`,
       options.operation === "insert"
         ? "已读取自由编辑区最后停留的光标位置"
         : options.operation === "title-insert"
           ? "已读取标题最后停留的光标位置"
         : selection ? `已读取当前选区：${selection.label}` : "未检测到选区，将按全文处理",
       articleStylePrompt.trim() ? "已读取文章风格要求。" : "未设置额外文章风格要求。",
-      "正在调用本机 Codex..."
+      useArticleContextForSelection && selection ? "选区处理会参考全文上下文，但只回填选区。" : ""
+    ].filter(Boolean).join(" / ");
+    setAiTrace([
+      { kind: "request", message: requestSummary },
+      { kind: "status", message: "正在调用本机 Codex..." }
     ]);
     const contentHtml = editorRef.current?.innerHTML ?? state.article.contentHtml ?? "";
     const effectiveAllowImageGeneration = selection?.target === "title" || options.operation === "title-insert"
@@ -1003,17 +1041,21 @@ function App() {
           const parsed = parseSseBlock(block);
           if (!parsed) continue;
           if (parsed.event === "trace") {
+            const traceData = parsed.data as { message?: unknown; kind?: unknown };
             const message = typeof parsed.data === "object" && parsed.data && "message" in parsed.data
-              ? String((parsed.data as { message?: unknown }).message ?? "")
+              ? String(traceData.message ?? "")
               : String(parsed.data);
-            appendTraceItem(setAiTrace, message);
+            const kind = traceData && ["request", "thinking", "output", "status", "error"].includes(String(traceData.kind))
+              ? traceData.kind as AiTraceItem["kind"]
+              : "status";
+            appendTraceItem(setAiTrace, message, kind);
           }
           if (parsed.event === "done") {
             const next = parsed.data as ApiState;
             setState(next);
             if (editorRef.current) {
               editorRef.current.innerHTML = next.article.contentHtml ?? "";
-              const cleanArticle = focusAiResult(next, effectiveAllowImageGeneration);
+              const cleanArticle = focusAiResult(next, effectiveAllowImageGeneration, payload.selectionTarget);
               if (cleanArticle.contentHtml !== next.article.contentHtml) {
                 setState((prev) => (prev ? { ...prev, article: cleanArticle } : prev));
                 void persist(cleanArticle);
@@ -1025,7 +1067,7 @@ function App() {
             setShowCustomBox(false);
             setShowInsertBox(false);
             setShowImageBox(false);
-            appendTraceItem(setAiTrace, "完成，已回填到文章。");
+            appendTraceItem(setAiTrace, "完成，已回填到文章，并重新选中改写后的完整区域。", "output");
             completed = true;
           }
           if (parsed.event === "error") {
@@ -1049,7 +1091,7 @@ function App() {
         ? "Codex 直连不可用。请先运行 codex login 登录；请求已保存为 fallback。"
         : `AI 处理失败：${message}`;
       removeInsertAnchors();
-      appendTraceItem(setAiTrace, errorMessage);
+      appendTraceItem(setAiTrace, errorMessage, "error");
     } finally {
       setIsAiRunning(false);
     }
@@ -1101,7 +1143,7 @@ function App() {
     setCodexImageGuide({ prompt: codexPrompt, path: imageRequestPath });
     setCodexCopyState("idle");
     setNotice("已生成 Codex 生图请求。请按下方步骤回到 Codex 对话处理。");
-    appendTraceItem(setAiTrace, "Codex 生图请求已准备好，等待你回到 Codex 对话处理。");
+    appendTraceItem(setAiTrace, "Codex 生图请求已准备好，等待你回到 Codex 对话处理。", "status");
   }
 
   async function copyCodexImagePrompt(prompt: string) {
@@ -1339,6 +1381,7 @@ function App() {
             )}
             <input
               className="titleInput"
+              ref={titleInputRef}
               value={state.article.title}
               placeholder="请输入公众号文章标题"
               onChange={handleTitleChange}
@@ -1549,10 +1592,18 @@ function App() {
                   <span>{traceCollapsed ? "展开" : "收起"}</span>
                 </button>
                 {traceCollapsed ? (
-                  <p>{aiTrace.at(-1)}</p>
+                  aiTrace.at(-1) && (
+                    <p className={`traceItem ${aiTrace.at(-1)?.kind}`}>
+                      <span>{traceLabel(aiTrace.at(-1)?.kind ?? "status")}</span>
+                      {aiTrace.at(-1)?.message}
+                    </p>
+                  )
                 ) : (
                   aiTrace.map((item, index) => (
-                    <p key={`${item}-${index}`}>{item}</p>
+                    <p className={`traceItem ${item.kind}`} key={`${item.kind}-${item.message}-${index}`}>
+                      <span>{traceLabel(item.kind)}</span>
+                      {item.message}
+                    </p>
                   ))
                 )}
               </div>
