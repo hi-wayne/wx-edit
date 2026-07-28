@@ -1841,23 +1841,6 @@ function App() {
           )}
         </aside>
 
-        <aside className="articleListPanel">
-          <div className="accountCard">
-            <div className="accountRow">
-              <span className="accountAvatar" />
-              <strong>{state.article.author || "随笔记录一角"}</strong>
-            </div>
-            <button className="articleListItem" onClick={() => titleInputRef.current?.focus()}>
-              <span>{state.article.title || "标题"}</span>
-            </button>
-            <button className="addContentButton" onClick={() => setShowNewArticleModal(true)}>
-              <span>+</span>
-              新建内容
-            </button>
-          </div>
-          <button className="historyButton">历史版本⌄</button>
-        </aside>
-
         <section className="writingStage">
           <article className="paper" ref={paperRef}>
             {selectionRects.length > 0 && (
