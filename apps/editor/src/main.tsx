@@ -103,6 +103,12 @@ interface StoredCaretState {
   bodySnapshot: CaretSnapshot | null;
 }
 
+interface EditorHistoryEntry {
+  title: string;
+  author: string;
+  contentHtml: string;
+}
+
 const caretStorageKey = "wx-codex-editor:last-caret";
 const stylePromptStorageKey = "wx-codex-editor:article-style-prompt";
 
@@ -354,11 +360,22 @@ function createBlankArticle(): ArticleDocument {
     title: "",
     author: "",
     digest: "",
-    cover: "",
     sourceUrl: "",
     contentHtml: "<p><br></p>",
     blocks: []
   };
+}
+
+function articleToHistoryEntry(article: ArticleDocument): EditorHistoryEntry {
+  return {
+    title: article.title ?? "",
+    author: article.author ?? "",
+    contentHtml: legacyBlocksToHtml(article)
+  };
+}
+
+function historyKey(entry: EditorHistoryEntry): string {
+  return JSON.stringify(entry);
 }
 
 function App() {
@@ -392,6 +409,10 @@ function App() {
   const pendingImageReplace = useRef(false);
   const saveTimer = useRef<number | null>(null);
   const traceCollapseTimer = useRef<number | null>(null);
+  const historyTimer = useRef<number | null>(null);
+  const undoStack = useRef<EditorHistoryEntry[]>([]);
+  const redoStack = useRef<EditorHistoryEntry[]>([]);
+  const lastHistoryKey = useRef("");
   const highlightedRange = useRef<Range | null>(null);
   const lastSelectionSnapshot = useRef<BodySelectionSnapshot | null>(null);
   const lastCaretRange = useRef<Range | null>(null);
@@ -401,6 +422,81 @@ function App() {
   const selectionTimer = useRef<number | null>(null);
   const suppressSelectionUntil = useRef(0);
   const suppressLoadUntil = useRef(0);
+
+  function currentHistoryEntry(): EditorHistoryEntry | null {
+    if (!state) return null;
+    return {
+      title: state.article.title ?? "",
+      author: state.article.author ?? "",
+      contentHtml: editorRef.current?.innerHTML ?? state.article.contentHtml ?? "<p><br></p>"
+    };
+  }
+
+  function pushHistorySnapshot(entry = currentHistoryEntry(), resetRedo = true) {
+    if (!entry) return;
+    const key = historyKey(entry);
+    if (key === lastHistoryKey.current) return;
+    undoStack.current.push(entry);
+    if (undoStack.current.length > 120) undoStack.current.shift();
+    lastHistoryKey.current = key;
+    if (resetRedo) redoStack.current = [];
+  }
+
+  function scheduleHistorySnapshot(entry?: EditorHistoryEntry) {
+    if (historyTimer.current) window.clearTimeout(historyTimer.current);
+    historyTimer.current = window.setTimeout(() => {
+      pushHistorySnapshot(entry ?? currentHistoryEntry());
+    }, 260);
+  }
+
+  async function applyHistoryEntry(entry: EditorHistoryEntry) {
+    if (!state) return;
+    if (saveTimer.current) {
+      window.clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    const article: ArticleDocument = {
+      ...state.article,
+      title: entry.title,
+      author: entry.author,
+      contentHtml: entry.contentHtml,
+      blocks: []
+    };
+    if (editorRef.current) editorRef.current.innerHTML = entry.contentHtml;
+    clearStoredSelection(true);
+    setState((prev) => (prev ? { ...prev, article } : prev));
+    await persist(article);
+  }
+
+  function undoEdit() {
+    if (historyTimer.current) {
+      window.clearTimeout(historyTimer.current);
+      historyTimer.current = null;
+    }
+    const current = currentHistoryEntry();
+    if (current && historyKey(current) !== lastHistoryKey.current) {
+      pushHistorySnapshot(current, false);
+    }
+    if (undoStack.current.length <= 1) return;
+    const currentEntry = undoStack.current.pop();
+    if (currentEntry) redoStack.current.push(currentEntry);
+    const previous = undoStack.current.at(-1);
+    if (!previous) return;
+    lastHistoryKey.current = historyKey(previous);
+    void applyHistoryEntry(previous);
+  }
+
+  function redoEdit() {
+    if (historyTimer.current) {
+      window.clearTimeout(historyTimer.current);
+      historyTimer.current = null;
+    }
+    const next = redoStack.current.pop();
+    if (!next) return;
+    undoStack.current.push(next);
+    lastHistoryKey.current = historyKey(next);
+    void applyHistoryEntry(next);
+  }
 
   function saveCaretState() {
     const payload: StoredCaretState = {
@@ -444,6 +540,9 @@ function App() {
     if (!isEditing && Date.now() >= suppressLoadUntil.current && editorRef.current) {
       editorRef.current.innerHTML = legacyBlocksToHtml(next.article);
     }
+    if (undoStack.current.length === 0) {
+      pushHistorySnapshot(articleToHistoryEntry(next.article), false);
+    }
   }
 
   useEffect(() => {
@@ -473,6 +572,7 @@ function App() {
     return () => {
       if (traceCollapseTimer.current) window.clearTimeout(traceCollapseTimer.current);
       if (selectionTimer.current) window.clearTimeout(selectionTimer.current);
+      if (historyTimer.current) window.clearTimeout(historyTimer.current);
     };
   }, []);
 
@@ -525,6 +625,9 @@ function App() {
     lastTitleCaret.current = 0;
     lastCaretRange.current = null;
     lastCaretSnapshot.current = null;
+    undoStack.current = [articleToHistoryEntry(blankArticle)];
+    redoStack.current = [];
+    lastHistoryKey.current = historyKey(undoStack.current[0]);
     window.localStorage.removeItem(caretStorageKey);
     if (editorRef.current) {
       editorRef.current.innerHTML = blankArticle.contentHtml ?? "<p><br></p>";
@@ -745,17 +848,31 @@ function App() {
   function handleEditorInput() {
     clearStoredSelection(false);
     saveEditorHtml();
+    scheduleHistorySnapshot({
+      ...(currentHistoryEntry() ?? articleToHistoryEntry(state?.article ?? createBlankArticle())),
+      contentHtml: editorRef.current?.innerHTML ?? "<p><br></p>"
+    });
     window.setTimeout(rememberCaretFromSelection, 0);
   }
 
   function handleTitleChange(event: React.ChangeEvent<HTMLInputElement>) {
     rememberTitleCaret(event.currentTarget);
     clearStoredSelection(false);
-    updateArticle({ title: event.target.value.slice(0, 64) });
+    const title = event.target.value.slice(0, 64);
+    updateArticle({ title });
+    scheduleHistorySnapshot({
+      ...(currentHistoryEntry() ?? articleToHistoryEntry(state?.article ?? createBlankArticle())),
+      title
+    });
   }
 
   function handleAuthorChange(event: React.ChangeEvent<HTMLInputElement>) {
-    updateArticle({ author: event.target.value });
+    const author = event.target.value;
+    updateArticle({ author });
+    scheduleHistorySnapshot({
+      ...(currentHistoryEntry() ?? articleToHistoryEntry(state?.article ?? createBlankArticle())),
+      author
+    });
   }
 
   function captureSelection() {
@@ -984,6 +1101,14 @@ function App() {
   }
 
   function runFormat(command: string, value?: string, preferSelection = true) {
+    if (command === "undo") {
+      undoEdit();
+      return;
+    }
+    if (command === "redo") {
+      redoEdit();
+      return;
+    }
     if (command === "removeFormat" && selectedFigureElement()) {
       resetSelectedImageFormat();
       return;
@@ -992,6 +1117,10 @@ function App() {
     if (!restoreBodyCommandRange(preferSelection)) editorRef.current?.focus();
     document.execCommand(command, false, value);
     saveEditorHtml();
+    scheduleHistorySnapshot({
+      ...(currentHistoryEntry() ?? articleToHistoryEntry(state?.article ?? createBlankArticle())),
+      contentHtml: editorRef.current?.innerHTML ?? "<p><br></p>"
+    });
     const activeSelection = window.getSelection();
     if (activeSelection && activeSelection.rangeCount > 0 && !activeSelection.isCollapsed && editorRef.current?.contains(activeSelection.getRangeAt(0).commonAncestorContainer)) {
       const range = activeSelection.getRangeAt(0);
@@ -1037,6 +1166,26 @@ function App() {
     event.preventDefault();
     captureSelection();
     runFormat(command, undefined, command !== "undo" && command !== "redo");
+  }
+
+  function handleTitleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    const isMod = event.metaKey || event.ctrlKey;
+    if (!isMod || event.altKey) return;
+    const key = event.key.toLowerCase();
+    if (key === "z" && event.shiftKey) {
+      event.preventDefault();
+      redoEdit();
+      return;
+    }
+    if (key === "z") {
+      event.preventDefault();
+      undoEdit();
+      return;
+    }
+    if (key === "y") {
+      event.preventDefault();
+      redoEdit();
+    }
   }
 
   function insertHtml(html: string) {
@@ -1698,7 +1847,7 @@ function App() {
               <span className="accountAvatar" />
               <strong>{state.article.author || "随笔记录一角"}</strong>
             </div>
-            <button className="articleThumb" onClick={() => titleInputRef.current?.focus()}>
+            <button className="articleListItem" onClick={() => titleInputRef.current?.focus()}>
               <span>{state.article.title || "标题"}</span>
             </button>
             <button className="addContentButton" onClick={() => setShowNewArticleModal(true)}>
@@ -1759,6 +1908,7 @@ function App() {
                 onClick={(event) => rememberTitleCaret(event.currentTarget)}
                 onSelect={captureTitleSelection}
                 onMouseUp={captureTitleSelection}
+                onKeyDown={handleTitleKeyDown}
                 onKeyUp={captureTitleSelection}
               />
               <span>{state.article.title.length}/64</span>
@@ -1768,6 +1918,7 @@ function App() {
                 value={state.article.author ?? ""}
                 placeholder="请输入作者"
                 onChange={handleAuthorChange}
+                onKeyDown={handleTitleKeyDown}
               />
             </div>
             <div
@@ -1808,14 +1959,6 @@ function App() {
         </section>
 
         <aside className="aiDock">
-          <div className="rightFloatActions">
-            <button onClick={() => void submitAiRequest("请对全文做一次微信公众号文章排版优化：只调整段落、标题层级、引用、列表、强调和分隔线，不改变原意，不新增图片。", { allowImageGeneration: false })}>
-              一键排版
-            </button>
-            <button onClick={() => setNotice("文章设置目前在顶部新建/导出和右侧 AI 风格要求中处理。")}>
-              文章设置
-            </button>
-          </div>
           <section className="toolPanel aiPanel">
             <div className="panelHead">
               <div>
