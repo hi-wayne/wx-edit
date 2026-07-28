@@ -1936,7 +1936,6 @@ function App() {
             <div className="paperStatusActions">
               <button onClick={() => void persist({ ...state.article, contentHtml: editorRef.current?.innerHTML ?? state.article.contentHtml ?? "", blocks: [] })}>保存为草稿</button>
               <button onClick={() => setNotice("预览就是当前中间稿纸区域，复制或导出前请以微信公众号后台预览为准。")}>预览</button>
-              <button onClick={copyHtml}>发布</button>
             </div>
           </div>
         </section>
