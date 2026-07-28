@@ -1565,10 +1565,16 @@ function App() {
         <div className="brand">
           <WandSparkles size={22} />
           <div>
-            <h1>公众号AI心流写作台</h1>
+            <h1>公众号</h1>
             <p>像普通编辑器一样自由写作，选中哪里就让 Codex 改哪里</p>
           </div>
         </div>
+        <nav className="topNav" aria-label="公众号素材工具">
+          {["图片", "视频", "音频", "超链接", "小程序", "模板", "投票", "搜索", "地理位置", "视频号", "账号名片", "问答", "礼物", "收入变现"].map((item) => (
+            <button key={item}>{item}</button>
+          ))}
+          <button>...</button>
+        </nav>
         <div className="topActions">
           <button onClick={() => setShowNewArticleModal(true)}>
             <FilePlus size={17} />
@@ -1675,6 +1681,23 @@ function App() {
           )}
         </aside>
 
+        <aside className="articleListPanel">
+          <div className="accountCard">
+            <div className="accountRow">
+              <span className="accountAvatar" />
+              <strong>{state.article.author || "随笔记录一角"}</strong>
+            </div>
+            <button className="articleThumb" onClick={() => titleInputRef.current?.focus()}>
+              <span>{state.article.title || "标题"}</span>
+            </button>
+            <button className="addContentButton" onClick={() => setShowNewArticleModal(true)}>
+              <span>+</span>
+              新建内容
+            </button>
+          </div>
+          <button className="historyButton">历史版本⌄</button>
+        </aside>
+
         <section className="writingStage">
           <article className="paper" ref={paperRef}>
             {selectionRects.length > 0 && (
@@ -1774,6 +1797,14 @@ function App() {
         </section>
 
         <aside className="aiDock">
+          <div className="rightFloatActions">
+            <button onClick={() => void submitAiRequest("请对全文做一次微信公众号文章排版优化：只调整段落、标题层级、引用、列表、强调和分隔线，不改变原意，不新增图片。", { allowImageGeneration: false })}>
+              一键排版
+            </button>
+            <button onClick={() => setNotice("文章设置目前在顶部新建/导出和右侧 AI 风格要求中处理。")}>
+              文章设置
+            </button>
+          </div>
           <section className="toolPanel aiPanel">
             <div className="panelHead">
               <div>
