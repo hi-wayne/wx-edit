@@ -97,6 +97,10 @@ button:disabled {
   white-space: nowrap;
 }
 
+.topNav button:disabled {
+  opacity: 0.4;
+}
+
 .topNav button:hover {
   background: #f3f3f3;
 }
@@ -266,7 +270,8 @@ button:disabled {
   display: none;
 }
 
-.railSection button {
+.railSection button,
+.railSection select {
   width: 30px;
   height: 30px;
   display: inline-flex;
@@ -278,6 +283,20 @@ button:disabled {
   color: #35393d;
   font-size: 12px;
   font-weight: 700;
+}
+
+.railSection select {
+  width: auto;
+  min-width: 64px;
+  padding: 0 20px 0 8px;
+  outline: none;
+  appearance: auto;
+}
+
+.railSection select:hover,
+.railSection select:focus {
+  border-color: #d8d8d8;
+  background: #f7f7f7;
 }
 
 .railSection button.active,

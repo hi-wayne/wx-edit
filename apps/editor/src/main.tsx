@@ -1570,10 +1570,13 @@ function App() {
           </div>
         </div>
         <nav className="topNav" aria-label="公众号素材工具">
-          {["图片", "视频", "音频", "超链接", "小程序", "模板", "投票", "搜索", "地理位置", "视频号", "账号名片", "问答", "礼物", "收入变现"].map((item) => (
-            <button key={item}>{item}</button>
+          <button onClick={chooseLocalImage}>图片</button>
+          <button onClick={insertLink}>超链接</button>
+          {layoutTemplates.map((template) => (
+            <button key={template.name} onClick={() => insertHtml(template.html)}>{template.name}</button>
           ))}
-          <button>...</button>
+          <button onClick={() => runFormat("insertHorizontalRule")}>分隔线</button>
+          <button onClick={insertImageSlot}>图片占位</button>
         </nav>
         <div className="topActions">
           <button onClick={() => setShowNewArticleModal(true)}>
@@ -1612,9 +1615,18 @@ function App() {
         >
           <div className="railSection">
             <span>段落</span>
-            <button title="正文" onClick={() => runFormat("formatBlock", "p")}><Pilcrow size={17} /></button>
-            <button title="小标题" onClick={() => runFormat("formatBlock", "h2")}><Heading2 size={17} /></button>
-            <button title="三级标题" onClick={() => runFormat("formatBlock", "h3")}><Heading3 size={17} /></button>
+            <select title="段落格式" defaultValue="p" onChange={(event) => runFormat("formatBlock", event.target.value)}>
+              <option value="p">正文</option>
+              <option value="h2">标题 2</option>
+              <option value="h3">标题 3</option>
+              <option value="blockquote">引用</option>
+            </select>
+            <select title="字号" defaultValue="3" onChange={(event) => runFormat("fontSize", event.target.value)}>
+              <option value="2">14px</option>
+              <option value="3">17px</option>
+              <option value="4">20px</option>
+              <option value="5">24px</option>
+            </select>
             <button title="引用" onClick={() => runFormat("formatBlock", "blockquote")}><Quote size={17} /></button>
             <button title="无序列表" onClick={() => runFormat("insertUnorderedList")}><List size={17} /></button>
             <button title="有序列表" onClick={() => runFormat("insertOrderedList")}><ListOrdered size={17} /></button>
@@ -1626,7 +1638,6 @@ function App() {
             <button title="下划线" onClick={() => runFormat("underline")}><Underline size={17} /></button>
             <button title="删除线" onClick={() => runFormat("strikeThrough")}><Strikethrough size={17} /></button>
             <button title="标注" onClick={() => runFormat("backColor", "#e7f5f2")}><Highlighter size={17} /></button>
-            <button title="大字号" onClick={() => runFormat("fontSize", "4")}><Type size={17} /></button>
             <button title="清除格式" onClick={() => runFormat("removeFormat")}><Eraser size={17} /></button>
             <div className="railSwatches">
               {colorSwatches.map((color) => (
