@@ -751,7 +751,11 @@ function App() {
   function handleTitleChange(event: React.ChangeEvent<HTMLInputElement>) {
     rememberTitleCaret(event.currentTarget);
     clearStoredSelection(false);
-    updateArticle({ title: event.target.value });
+    updateArticle({ title: event.target.value.slice(0, 64) });
+  }
+
+  function handleAuthorChange(event: React.ChangeEvent<HTMLInputElement>) {
+    updateArticle({ author: event.target.value });
   }
 
   function captureSelection() {
@@ -1553,6 +1557,7 @@ function App() {
   const selectionHandle = selectionRects.length > 0
     ? selectionRects[0]
     : null;
+  const bodyWordCount = htmlToText(editorRef.current?.innerHTML ?? state.article.contentHtml ?? "").length;
 
   return (
     <main className="workspace">
@@ -1599,9 +1604,8 @@ function App() {
             }
           }}
         >
-          <div className="railHelp">选中文字后点样式；插入类放到最后光标处</div>
           <div className="railSection">
-            <span>段落格式</span>
+            <span>段落</span>
             <button title="正文" onClick={() => runFormat("formatBlock", "p")}><Pilcrow size={17} /></button>
             <button title="小标题" onClick={() => runFormat("formatBlock", "h2")}><Heading2 size={17} /></button>
             <button title="三级标题" onClick={() => runFormat("formatBlock", "h3")}><Heading3 size={17} /></button>
@@ -1610,7 +1614,7 @@ function App() {
             <button title="有序列表" onClick={() => runFormat("insertOrderedList")}><ListOrdered size={17} /></button>
           </div>
           <div className="railSection">
-            <span>文字样式</span>
+            <span>文字</span>
             <button title="加粗" onClick={() => runFormat("bold")}><Bold size={17} /></button>
             <button title="斜体" onClick={() => runFormat("italic")}><Italic size={17} /></button>
             <button title="下划线" onClick={() => runFormat("underline")}><Underline size={17} /></button>
@@ -1625,7 +1629,7 @@ function App() {
             </div>
           </div>
           <div className="railSection">
-            <span>排版结构</span>
+            <span>排版</span>
             <button title="撤销" onClick={() => runFormat("undo", undefined, false)}><Undo2 size={17} /></button>
             <button title="重做" onClick={() => runFormat("redo", undefined, false)}><Redo2 size={17} /></button>
             <button title="左对齐" onClick={() => runFormat("justifyLeft")}><AlignLeft size={17} /></button>
@@ -1637,7 +1641,7 @@ function App() {
             <button title="链接" onClick={insertLink}><Link size={17} /></button>
           </div>
           <div className="railSection insertSection">
-            <span>插入到光标</span>
+            <span>插入</span>
             <button title="本地图片" onClick={chooseLocalImage}>本地图片</button>
             {layoutTemplates.map((template) => (
               <button key={template.name} title={template.name} onClick={() => insertHtml(template.html)}>{template.name}</button>
@@ -1672,10 +1676,6 @@ function App() {
         </aside>
 
         <section className="writingStage">
-          <div className="paperToolbar">
-            <span>自由编辑区</span>
-            <small>左侧工具区只改变选中内容或光标位置</small>
-          </div>
           <article className="paper" ref={paperRef}>
             {selectionRects.length > 0 && (
               <div className="persistentSelectionLayer">
@@ -1714,21 +1714,27 @@ function App() {
                 )}
               </div>
             )}
-            <input
-              className="titleInput"
-              ref={titleInputRef}
-              value={state.article.title}
-              placeholder="请输入公众号文章标题"
-              onChange={handleTitleChange}
-              onFocus={(event) => rememberTitleCaret(event.currentTarget)}
-              onClick={(event) => rememberTitleCaret(event.currentTarget)}
-              onSelect={captureTitleSelection}
-              onMouseUp={captureTitleSelection}
-              onKeyUp={captureTitleSelection}
-            />
+            <div className="titleRow">
+              <input
+                className="titleInput"
+                ref={titleInputRef}
+                value={state.article.title}
+                placeholder="请在这里输入标题"
+                onChange={handleTitleChange}
+                onFocus={(event) => rememberTitleCaret(event.currentTarget)}
+                onClick={(event) => rememberTitleCaret(event.currentTarget)}
+                onSelect={captureTitleSelection}
+                onMouseUp={captureTitleSelection}
+                onKeyUp={captureTitleSelection}
+              />
+              <span>{state.article.title.length}/64</span>
+            </div>
             <div className="articleMeta">
-              <span>{state.article.author || "作者"}</span>
-              <span>今天</span>
+              <input
+                value={state.article.author ?? ""}
+                placeholder="请输入作者"
+                onChange={handleAuthorChange}
+              />
             </div>
             <div
               ref={editorRef}
@@ -1757,6 +1763,14 @@ function App() {
               onPaste={() => window.setTimeout(handleEditorInput, 0)}
             />
           </article>
+          <div className="paperStatusBar">
+            <span>正文字数 {bodyWordCount}</span>
+            <div className="paperStatusActions">
+              <button onClick={() => void persist({ ...state.article, contentHtml: editorRef.current?.innerHTML ?? state.article.contentHtml ?? "", blocks: [] })}>保存为草稿</button>
+              <button onClick={() => setNotice("预览就是当前中间稿纸区域，复制或导出前请以微信公众号后台预览为准。")}>预览</button>
+              <button onClick={copyHtml}>发布</button>
+            </div>
+          </div>
         </section>
 
         <aside className="aiDock">
